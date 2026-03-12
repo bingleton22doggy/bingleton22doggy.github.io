@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor</title>
+    <style>
+        :root {
+            --bg: #ffffff;
+            --border: #e0e0e0;
+            --text: #1a1a1a;
+            --accent: #0055ff;
+            --subtle: #888;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            transition: all 0.2s ease;
+        }
+
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            transition: flex 0.2s ease, opacity 0.2s ease;
+            background: var(--bg);
+        }
+
+        .pane:last-child { border-right: none; }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--border);
+            background: #fff;
+        }
+
+        .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--subtle);
+            user-select: none;
+        }
+
+        .btn-focus {
+            background: none;
+            border: none;
+            color: var(--subtle);
+            font-size: 10px;
+            text-transform: uppercase;
+            cursor: pointer;
+            padding: 2px 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-focus:hover { color: var(--text); }
+
+        textarea {
+            flex: 1;
+            padding: 20px;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            background: #fafafa;
+            color: var(--text);
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white;
+        }
+
+        /* Fullscreen/Focus Logic */
+        .hidden { display: none !important; }
+        .focused { flex: 100% !important; border: none !important; }
+
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-container">
+    <div class="pane" id="editor-pane">
+        <div class="header">
+            <span class="label">Source</span>
+            <button class="btn-focus" onclick="toggleFocus('editor')">Focus</button>
+        </div>
+        <textarea id="code" spellcheck="false"></textarea>
+    </div>
+    
+    <div class="pane" id="preview-pane">
+        <div class="header">
+            <span class="label">Preview</span>
+            <button class="btn-focus" onclick="toggleFocus('preview')">Focus</button>
+        </div>
+        <iframe id="output"></iframe>
+    </div>
+</div>
+
+<script>
+    const editorPane = document.getElementById('editor-pane');
+    const previewPane = document.getElementById('preview-pane');
+    const textarea = document.getElementById('code');
+    const iframe = document.getElementById('output');
+
+    const defaultCode = `<h1>Minimal Editor</h1>\n<p>Try the <b>Focus</b> buttons above.</p>`;
+    textarea.value = defaultCode;
+
+    function updatePreview() {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(textarea.value);
+        doc.close();
+    }
+
+    function toggleFocus(target) {
+        const isEditor = target === 'editor';
+        const focusBtn = isEditor ? editorPane.querySelector('.btn-focus') : previewPane.querySelector('.btn-focus');
+
+        if (editorPane.classList.contains('hidden') || previewPane.classList.contains('hidden')) {
+            // Restore Split View
+            editorPane.classList.remove('hidden', 'focused');
+            previewPane.classList.remove('hidden', 'focused');
+            document.querySelectorAll('.btn-focus').forEach(btn => btn.innerText = 'Focus');
+        } else {
+            // Go Fullscreen
+            if (isEditor) {
+                previewPane.classList.add('hidden');
+                editorPane.classList.add('focused');
+                focusBtn.innerText = 'Split';
+            } else {
+                editorPane.classList.add('hidden');
+                previewPane.classList.add('focused');
+                focusBtn.innerText = 'Split';
+            }
+        }
+    }
+
+    textarea.addEventListener('input', updatePreview);
+    updatePreview();
+</script>
+
+</body>
+</html>
