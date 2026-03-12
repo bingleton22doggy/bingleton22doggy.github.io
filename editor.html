@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor</title>
+    <title>Live Editor</title>
     <style>
         :root {
             --bg: #ffffff;
             --border: #e0e0e0;
             --text: #1a1a1a;
             --accent: #0055ff;
+            --accent-hover: #0044cc;
             --subtle: #888;
+            --editor-bg: #fafafa;
         }
 
         body, html {
@@ -48,14 +50,39 @@
             padding: 8px 16px;
             border-bottom: 1px solid var(--border);
             background: #fff;
+            height: 40px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
         }
 
         .label {
             font-size: 11px;
             text-transform: uppercase;
+            font-weight: 600;
             letter-spacing: 1px;
             color: var(--subtle);
             user-select: none;
+        }
+
+        .btn-run {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-run:hover {
+            background: var(--accent-hover);
         }
 
         .btn-focus {
@@ -77,21 +104,21 @@
             border: none;
             outline: none;
             resize: none;
-            font-family: "SFMono-Regular", Consolas, monospace;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
             font-size: 14px;
             line-height: 1.6;
-            background: #fafafa;
+            background: var(--editor-bg);
             color: var(--text);
         }
 
         iframe {
             width: 100%;
-            height: 100%;
+            flex: 1;
             border: none;
             background: white;
         }
 
-        /* Fullscreen/Focus Logic */
+        /* Utility Classes */
         .hidden { display: none !important; }
         .focused { flex: 100% !important; border: none !important; }
 
@@ -100,17 +127,22 @@
 <body>
 
 <div class="container" id="main-container">
+    <!-- Editor Pane -->
     <div class="pane" id="editor-pane">
         <div class="header">
-            <span class="label">Source</span>
-            <button class="btn-focus" onclick="toggleFocus('editor')">Focus</button>
+            <span class="label">Code Editor</span>
+            <div class="controls">
+                <button class="btn-run" onclick="updatePreview()">Run</button>
+                <button class="btn-focus" onclick="toggleFocus('editor')">Focus</button>
+            </div>
         </div>
-        <textarea id="code" spellcheck="false"></textarea>
+        <textarea id="code" spellcheck="false" placeholder="Write your HTML/CSS here..."></textarea>
     </div>
     
+    <!-- Preview Pane -->
     <div class="pane" id="preview-pane">
         <div class="header">
-            <span class="label">Preview</span>
+            <span class="label">Live Output</span>
             <button class="btn-focus" onclick="toggleFocus('preview')">Focus</button>
         </div>
         <iframe id="output"></iframe>
@@ -123,9 +155,35 @@
     const textarea = document.getElementById('code');
     const iframe = document.getElementById('output');
 
-    const defaultCode = `<h1>hello world</h1>\n<p></p>`;
+    // Default code with red text requirement
+    const defaultCode = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    h1 {
+      color: #ff0000;
+      font-size: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hello World</h1>
+</body>
+</html>`;
+
     textarea.value = defaultCode;
 
+    /**
+     * Injects textarea content into the iframe
+     */
     function updatePreview() {
         const doc = iframe.contentDocument || iframe.contentWindow.document;
         doc.open();
@@ -133,6 +191,9 @@
         doc.close();
     }
 
+    /**
+     * Handles UI layout toggling between split and focus views
+     */
     function toggleFocus(target) {
         const isEditor = target === 'editor';
         const focusBtn = isEditor ? editorPane.querySelector('.btn-focus') : previewPane.querySelector('.btn-focus');
@@ -156,8 +217,14 @@
         }
     }
 
-    textarea.addEventListener('input', updatePreview);
-    updatePreview();
+    // Optional: Real-time update as you type (can be disabled if only 'Run' is preferred)
+    textarea.addEventListener('input', () => {
+        // You could throttle this, but for simple HTML it's very fast
+        updatePreview();
+    });
+
+    // Initial load
+    window.onload = updatePreview;
 </script>
 
 </body>
