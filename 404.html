@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PS2 Mini FPS - Tactical Drop</title>
+  <style>
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden;
+      background: #000; font-family: 'Arial Black', Gadget, sans-serif;
+      user-select: none;
+    }
+    canvas { 
+      display: block; width: 100vw !important; height: 100vh !important;
+      image-rendering: pixelated; 
+    }
+    
+    /* PS2 System Style UI */
+    #ui { position: fixed; inset: 0; pointer-events: none; color: #fff; }
+    
+    .ps2-panel {
+      background: rgba(0, 40, 80, 0.6);
+      border-left: 4px solid #00ffff;
+      padding: 10px;
+      box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+    }
+
+    #topLeft { 
+      position: absolute; left: 20px; top: 20px; 
+      font-size: 12px; line-height: 1.5;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #healthWrap { 
+      position: absolute; left: 20px; bottom: 30px; 
+      width: 280px; 
+    }
+    
+    #healthLabel { 
+      display: flex; justify-content: space-between; 
+      font-size: 14px; font-weight: bold; margin-bottom: 6px; 
+      color: #00ffff; 
+    }
+    
+    #healthBar { 
+      width: 100%; height: 14px; 
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #fff;
+      padding: 2px;
+    }
+    
+    #healthFill { 
+      width: 100%; height: 100%; 
+      transform-origin: left center; 
+      background: linear-gradient(to right, #0066ff, #00ffff); 
+    }
+    
+    #ammo { 
+      margin-top: 10px; font-size: 22px; font-weight: 900; 
+      color: #ffcc00; font-style: italic;
+    }
+    
+    #reloadHint {
+      font-size: 12px; color: #ff0000; animation: blink 1s infinite;
+      display: none; margin-top: 4px;
+    }
+
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+
+    #crosshair { 
+      position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; 
+      transform: translate(-50%, -50%);
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute; background: #00ffff;
+    }
+    #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+    #crosshair::after { top: 50%; left: 0; width: 100%; height: 2px; transform: translateY(-50%); }
+
+    #centerMsg { 
+      position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); 
+      font-size: 28px; font-weight: 900; color: #fff; 
+      text-align: center; width: 80%; 
+      text-shadow: 0 0 10px #0066ff;
+    }
+
+    /* Kill Notifications */
+    #killFeed {
+      position: absolute; left: 50%; top: 25%; transform: translateX(-50%);
+      text-align: center; color: #ffcc00; font-size: 24px; font-style: italic;
+      text-shadow: 2px 2px #000; opacity: 0; transition: opacity 0.2s;
+    }
+
+    #killCounter {
+      position: absolute; right: 20px; top: 20px; font-size: 20px; color: #00ff00;
+    }
+
+    #gameOver { 
+      position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); 
+      font-size: 48px; font-weight: 900; display: none; 
+      color: #ff0000; text-align: center; 
+      background: rgba(0,0,0,0.8); padding: 40px; border: 2px solid #ff0000;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div id="topLeft" class="ps2-panel">
+      OPERATIONS LOG:<br>
+      [WASD/ARROWS] MOVE & AIM<br>
+      [F] INITIATE DROP<br>
+      [E] IRON SIGHTS | [R] RELOAD<br>
+      [SPACE] FIRE TRIGGER
+    </div>
+
+    <div id="killCounter" class="ps2-panel">ELIMINATIONS: <span id="killVal">0</span></div>
+    
+    <div id="healthWrap" class="ps2-panel">
+      <div id="healthLabel"><span>VITALITY SCAN</span><span id="healthText">100</span></div>
+      <div id="healthBar"><div id="healthFill"></div></div>
+      <div id="ammo">MAG: <span id="ammoText">30 / 90</span></div>
+      <div id="reloadHint">LOW AMMO - PRESS R</div>
+    </div>
+
+    <div id="killFeed">BOT KILLED</div>
+    <div id="crosshair"></div>
+    <div id="centerMsg">SYSTEM READY<br><br>PRESS [F] TO DEPLOY</div>
+    
+    <div id="gameOver">
+      MISSION FAILED<br>
+      <span style="font-size:18px; color:#fff; letter-spacing: 2px;">PRESS ENTER TO RE-DEPLOY</span>
+    </div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    const skyColor = 0x1a2a3a;
+    scene.background = new THREE.Color(skyColor);
+    scene.fog = new THREE.Fog(skyColor, 5, 150);
+
+    const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(0.35); 
+    document.body.appendChild(renderer.domElement);
+
+    const clock = new THREE.Clock();
+    const colliders = [];
+    const enemies = [];
+    const bullets = [];
+    const pickups = [];
+
+    scene.add(new THREE.AmbientLight(0x404060));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(50, 100, 50);
+    scene.add(sun);
+
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshLambertMaterial({ color: 0x111511 }));
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    // STORM CIRCLE VISUAL
+    const stormGeom = new THREE.TorusGeometry(200, 2, 16, 100);
+    const stormMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.5 });
+    const stormRing = new THREE.Mesh(stormGeom, stormMat);
+    stormRing.rotation.x = Math.PI / 2;
+    scene.add(stormRing);
+
+    // Static Objects
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+    function makeBox(w, h, d, x, y, z, rotY = 0) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+      m.position.set(x, y, z);
+      m.rotation.y = rotY;
+      scene.add(m);
+      const box = new THREE.Box3().setFromObject(m);
+      colliders.push({ bounds: box, mesh: m });
+      return m;
+    }
+
+    // Central Building
+    makeBox(30, 0.2, 30, 0, 0.1, 0); 
+    makeBox(30, 0.2, 30, 0, 5, 0); 
+    makeBox(30, 10, 1, 0, 5, -15); 
+    makeBox(1, 10, 30, -15, 5, 0); 
+    
+    // THE RAMP to top floor
+    const ramp = makeBox(6, 0.2, 12, -5, 2.5, 12, 0);
+    ramp.rotation.x = -0.4; // Slanted up
+    // Recalculate bounds for the slanted ramp
+    colliders[colliders.length-1].bounds.setFromObject(ramp);
+
+    // Player State
+    const player = {
+      pos: new THREE.Vector3(150, 120, 150),
+      velY: 0, yaw: Math.PI/4, pitch: 0,
+      health: 100, ammo: 30, reserve: 90, maxMag: 30,
+      kills: 0,
+      state: 'LOBBY', 
+      isAds: false, isReloading: false,
+      onGround: false, dead: false, lastShot: 0,
+      orbitAngle: 0, bobTimer: 0,
+      stormRadius: 200
+    };
+
+    // WEAPON SETUP (Same as before)
+    const gunContainer = new THREE.Group();
+    const gunOffset = new THREE.Group();
+    const gunMesh = new THREE.Group();
+    const gBody = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 0.7), new THREE.MeshLambertMaterial({color: 0x151515}));
+    const gBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.6), new THREE.MeshLambertMaterial({color: 0x0a0a0a}));
+    gBarrel.rotation.x = Math.PI/2; gBarrel.position.z = -0.6;
+    gunMesh.add(gBody, gBarrel);
+    gunOffset.add(gunMesh);
+    gunContainer.add(gunOffset);
+    const hipPos = new THREE.Vector3(0.4, -0.4, -0.6);
+    const adsPos = new THREE.Vector3(0, -0.18, -0.4);
+    gunOffset.position.copy(hipPos);
+    camera.add(gunContainer);
+    scene.add(camera);
+
+    function createHuman(x, z) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.1, 0.45), new THREE.MeshLambertMaterial({color: 0x442222}));
+      body.position.y = 1.35;
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshLambertMaterial({color: 0xddaa88}));
+      head.position.y = 2.1;
+      group.add(body, head);
+      group.position.set(x, 0, z);
+      scene.add(group);
+      return { mesh: group, hp: 100, lastShot: 0, flashTime: 0 };
+    }
+
+    function spawnEnemies() {
+      // Spawn 49 enemies (50 players total including user)
+      for(let i=0; i<49; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 100 + Math.random() * 100;
+        enemies.push(createHuman(Math.cos(ang)*dist, Math.sin(ang)*dist));
+      }
+    }
+
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if(e.code === 'KeyF' && player.state === 'LOBBY') { 
+        player.state = 'DROPPING'; 
+        document.getElementById('centerMsg').innerText = ""; 
+        spawnEnemies(); 
+      }
+      // JUMP Mechanic on Enter
+      if(e.code === 'Enter' && player.onGround && player.state === 'LANDED') {
+        player.velY = 12;
+        player.onGround = false;
+      }
+      if(e.code === 'KeyE') player.isAds = true;
+      if(e.code === 'KeyR' && player.state === 'LANDED' && !player.isReloading) reload();
+      if(e.code === 'Space' && player.state === 'LANDED' && !player.isReloading) shoot(true);
+      if(e.code === 'KeyM' && player.dead) location.reload(); 
+    });
+    window.addEventListener('keyup', e => {
+      keys[e.code] = false;
+      if(e.code === 'KeyE') player.isAds = false;
+    });
+
+    window.addEventListener('mousemove', e => {
+      if(document.pointerLockElement === document.body) {
+        const factor = player.isAds ? 0.0008 : 0.002;
+        player.yaw -= e.movementX * factor;
+        player.pitch -= e.movementY * factor;
+        player.pitch = Math.max(-1.5, Math.min(1.5, player.pitch));
+      }
+    });
+
+    function shoot(fromPlayer, shooterPos = null, shooterDir = null) {
+      if(fromPlayer) {
+        if(player.ammo <= 0 || player.dead || performance.now() - player.lastShot < 120) return;
+        player.ammo--; player.lastShot = performance.now();
+        gunMesh.position.z += 0.15;
+      }
+      const b = {
+        mesh: new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 1.5), new THREE.MeshBasicMaterial({color: 0xffff00})),
+        vel: new THREE.Vector3(), life: 1.5, owner: fromPlayer ? 'player' : 'ai'
+      };
+      const dir = new THREE.Vector3();
+      if(fromPlayer) {
+        camera.getWorldDirection(dir);
+        b.mesh.position.copy(camera.position).add(dir);
+      } else {
+        dir.copy(shooterDir);
+        b.mesh.position.copy(shooterPos).add(dir);
+      }
+      b.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1), dir);
+      b.vel.copy(dir).multiplyScalar(150);
+      scene.add(b.mesh); bullets.push(b);
+    }
+
+    function checkCollision(pos) {
+      const pBox = new THREE.Box3().setFromCenterAndSize(pos, new THREE.Vector3(1, 3, 1));
+      for(let col of colliders) if(pBox.intersectsBox(col.bounds)) return true;
+      return false;
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      
+      if(!player.dead) {
+        // Storm Logic
+        if(player.state === 'LANDED') {
+          player.stormRadius -= 2.0 * dt; 
+          stormRing.scale.set(player.stormRadius/200, player.stormRadius/200, 1);
+          const distToCenter = new THREE.Vector2(player.pos.x, player.pos.z).length();
+          if(distToCenter > player.stormRadius) player.health -= 5 * dt;
+        }
+
+        if(player.state === 'LOBBY') {
+          player.orbitAngle += 0.2 * dt;
+          player.pos.set(Math.cos(player.orbitAngle)*150, 130, Math.sin(player.orbitAngle)*150);
+          player.yaw = -player.orbitAngle - Math.PI;
+        } 
+        else if(player.state === 'DROPPING') {
+          player.velY = -25; 
+          player.pos.y += player.velY * dt;
+          if(player.pos.y <= 1.7) player.state = 'LANDED';
+        } 
+        else {
+          const move = new THREE.Vector3();
+          const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+          const rit = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
+          if(keys['KeyW']) move.add(fwd); if(keys['KeyS']) move.addScaledVector(fwd, -1);
+          if(keys['KeyD']) move.add(rit); if(keys['KeyA']) move.addScaledVector(rit, -1);
+          
+          const speed = (player.isAds ? 5 : 12) * dt;
+          const nextX = player.pos.x + move.x * speed;
+          if(!checkCollision(new THREE.Vector3(nextX, player.pos.y, player.pos.z))) player.pos.x = nextX;
+          const nextZ = player.pos.z + move.z * speed;
+          if(!checkCollision(new THREE.Vector3(player.pos.x, player.pos.y, nextZ))) player.pos.z = nextZ;
+
+          player.velY -= 32 * dt;
+          player.pos.y += player.velY * dt;
+          
+          let floor = 0;
+          for(let col of colliders) {
+            if(col.bounds.containsPoint(new THREE.Vector3(player.pos.x, player.pos.y + 0.5, player.pos.z))) {
+               // Simple floor check for the ramp and roof
+               if(player.pos.y > col.bounds.max.y - 1.5) floor = Math.max(floor, col.bounds.max.y);
+            }
+          }
+          if(player.pos.y <= floor) { player.pos.y = floor; player.velY = 0; player.onGround = true; }
+          else { player.onGround = false; }
+
+          // AI Logic: Run to center if outside storm, shoot if close
+          enemies.forEach((e) => {
+            const distVec = new THREE.Vector2(e.mesh.position.x, e.mesh.position.z);
+            const distToCenter = distVec.length();
+            
+            if(distToCenter > player.stormRadius - 10) {
+                const moveDir = new THREE.Vector3().subVectors(new THREE.Vector3(0,0,0), e.mesh.position).normalize();
+                e.mesh.position.addScaledVector(moveDir, 8 * dt);
+            }
+
+            const dToP = e.mesh.position.distanceTo(player.pos);
+            e.mesh.lookAt(player.pos.x, 0, player.pos.z);
+            if(dToP < 40 && performance.now() - e.lastShot > 3000) {
+                e.lastShot = performance.now();
+                const dir = new THREE.Vector3().subVectors(player.pos, e.mesh.position).normalize();
+                shoot(false, e.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0)), dir);
+            }
+          });
+        }
+        camera.position.set(player.pos.x, player.pos.y + 1.7, player.pos.z);
+        camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+      }
+
+      // Bullets and Killing
+      for(let i=bullets.length-1; i>=0; i--) {
+        const b = bullets[i];
+        b.mesh.position.addScaledVector(b.vel, dt);
+        b.life -= dt;
+        if(b.owner === 'ai' && b.mesh.position.distanceTo(camera.position) < 1.5) {
+            player.health -= 15; b.life = 0;
+        }
+        enemies.forEach((e, ei) => {
+          if(b.owner === 'player' && b.mesh.position.distanceTo(e.mesh.position.clone().add(new THREE.Vector3(0,1,0))) < 1.5) {
+            e.hp -= 50; b.life = 0;
+            if(e.hp <= 0) { player.kills++; scene.remove(e.mesh); enemies.splice(ei, 1); }
+          }
+        });
+        if(b.life <= 0) { scene.remove(b.mesh); bullets.splice(i, 1); }
+      }
+
+      // UI Update
+      const totalPlayers = enemies.length + (player.dead ? 0 : 1);
+      document.getElementById('killVal').innerText = player.kills;
+      document.getElementById('killCounter').innerHTML = `REMAINING: ${totalPlayers} | KILLS: ${player.kills}`;
+      document.getElementById('healthText').innerText = Math.ceil(player.health);
+      document.getElementById('healthFill').style.transform = `scaleX(${player.health/100})`;
+      
+      if(player.health <= 0 && !player.dead) {
+        player.dead = true;
+        document.getElementById('gameOver').style.display='block';
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    function reload() {
+      if(player.isReloading || player.reserve <= 0) return;
+      player.isReloading = true;
+      setTimeout(() => {
+        const take = Math.min(player.maxMag - player.ammo, player.reserve);
+        player.ammo += take; player.reserve -= take;
+        player.isReloading = false;
+      }, 1000);
+    }
+  </script> 
+</body>
+</html>
