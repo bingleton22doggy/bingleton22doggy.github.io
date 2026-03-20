@@ -6,8 +6,9 @@
     <title>Marshall's Hub</title>
     <style>
         :root {
-            /* Updated background to kida.jpg as requested */
+            /* Background image */
             --bg-image: url('kida.jpg');
+            /* Default fallback icon image */
             --icon-image: url('kida.jpg');
             --glass: rgba(255, 255, 255, 0.1);
             --glass-border: rgba(255, 255, 255, 0.2);
@@ -113,7 +114,7 @@
             width: 85px;
             height: 85px;
             background-color: rgba(255,255,255,0.1);
-            background-image: var(--icon-image);
+            background-image: var(--icon-image); /* Can be overridden by inline styles */
             background-size: cover;
             background-position: center;
             border-radius: 22px;
@@ -239,22 +240,26 @@
         <div class="ring-guide"></div>
         
         <a href="editor.html" class="app-item">
-            <div class="icon-wrapper"></div>
+            <!-- Added edit.png inline style -->
+            <div class="icon-wrapper" style="background-image: url('edit.png');"></div>
             <span class="app-label">Code Editor</span>
         </a>
 
         <a href="ttttt-ttt-tttiddies.html" class="app-item">
-            <div class="icon-wrapper"></div>
+            <!-- Added bullet.png inline style -->
+            <div class="icon-wrapper" style="background-image: url('bullet.png');"></div>
             <span class="app-label">Bullet Fate</span>
         </a>
 
         <a href="mobile.html" class="app-item">
-            <div class="icon-wrapper"></div>
+            <!-- Added mobile.png inline style -->
+            <div class="icon-wrapper" style="background-image: url('mobile.png');"></div>
             <span class="app-label">Bullet Fate Mobile</span>
         </a>
 
         <a href="screensaver.html" class="app-item">
-            <div class="icon-wrapper"></div>
+            <!-- Added screensaver.png inline style -->
+            <div class="icon-wrapper" style="background-image: url('screensaver.png');"></div>
             <span class="app-label">Screensaver</span>
         </a>
     </div>
