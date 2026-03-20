@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Space Flow</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height, particles;
+        let ticker = 0;
+
+        const PARTICLE_COUNT = 1500;
+        const STEP = 0.005; // Speed of the field evolution
+        const NOISE_SCALE = 0.002; // Complexity of the curves
+
+        class Particle {
+            constructor() {
+                this.init();
+            }
+
+            init() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.px = this.x;
+                this.py = this.y;
+                this.life = Math.random() * 200 + 100;
+                // Subtle neon color palette (Purples, Cyans, Teals)
+                const hues = [180, 200, 280, 300];
+                this.hue = hues[Math.floor(Math.random() * hues.length)] + (Math.random() * 20 - 10);
+            }
+
+            update() {
+                this.px = this.x;
+                this.py = this.y;
+
+                // Simple pseudo-noise based movement
+                const angle = Math.sin(this.x * NOISE_SCALE + ticker) * Math.PI * 2 + 
+                              Math.cos(this.y * NOISE_SCALE + ticker) * Math.PI * 2;
+                
+                this.x += Math.cos(angle) * 1.2;
+                this.y += Math.sin(angle) * 1.2;
+
+                this.life--;
+
+                if (this.life <= 0 || this.x < 0 || this.x > width || this.y < 0 || this.y > height) {
+                    this.init();
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.strokeStyle = `hsla(${this.hue}, 80%, 60%, ${Math.min(0.3, this.life / 100)})`;
+                ctx.lineWidth = 0.8;
+                ctx.moveTo(this.px, this.py);
+                ctx.lineTo(this.x, this.y);
+                ctx.stroke();
+            }
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, width, height);
+            
+            particles = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            // Very light fade to create long trails
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+
+            ticker += STEP;
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', resize);
+        
+        window.onload = () => {
+            resize();
+            animate();
+        };
+    </script>
+</body>
+</html>
+
+
