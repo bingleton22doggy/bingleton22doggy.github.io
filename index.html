@@ -6,7 +6,8 @@
     <title>Marshall's Hub</title>
     <style>
         :root {
-            --bg-image: url('kida.png');
+            /* Updated background to kida.jpg as requested */
+            --bg-image: url('kida.jpg');
             --icon-image: url('example.png');
             --glass: rgba(255, 255, 255, 0.1);
             --glass-border: rgba(255, 255, 255, 0.2);
@@ -23,9 +24,11 @@
         body {
             height: 100vh;
             width: 100vw;
-            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), var(--bg-image);
+            /* Fallback color plus the image overlay for readability */
+            background: #1a1a1a linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), var(--bg-image);
             background-size: cover;
             background-position: center;
+            background-attachment: fixed;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -35,43 +38,54 @@
 
         /* Top Header Area */
         .header {
-            margin-top: 40px;
+            margin-top: 60px;
             text-align: center;
             animation: fadeInDown 1s ease-out;
+            z-index: 5;
         }
 
         .welcome-text {
-            font-size: 2.5rem;
+            font-size: clamp(1.8rem, 5vw, 2.8rem);
             font-weight: 300;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
             margin-bottom: 10px;
-            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            text-shadow: 0 4px 15px rgba(0,0,0,0.6);
         }
 
         .search-bar {
             background: var(--glass);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             border-radius: 50px;
             padding: 12px 30px;
-            width: 300px;
-            color: white;
+            width: min(320px, 80vw);
+            color: rgba(255,255,255,0.8);
             text-align: center;
             font-size: 0.9rem;
-            margin-top: 20px;
+            margin: 20px auto 0;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-bar:hover {
+            background: rgba(255, 255, 255, 0.15);
+            width: min(350px, 85vw);
         }
 
         /* The Circular Launcher Logic */
         .wheel-container {
-            position: relative;
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 500px;
             height: 500px;
-            margin-top: 50px;
             display: flex;
             justify-content: center;
             align-items: center;
-            animation: rotateIn 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: rotateIn 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         /* Visible guide ring */
@@ -79,7 +93,7 @@
             position: absolute;
             width: 400px;
             height: 400px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 50%;
             pointer-events: none;
         }
@@ -91,91 +105,125 @@
             align-items: center;
             text-decoration: none;
             color: white;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 2;
         }
 
         .icon-wrapper {
-            width: 80px;
-            height: 80px;
+            width: 85px;
+            height: 85px;
+            background-color: rgba(255,255,255,0.1);
             background-image: var(--icon-image);
             background-size: cover;
             background-position: center;
-            border-radius: 20px;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+            border-radius: 22px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
             border: 2px solid transparent;
-            transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Default fallback for missing images */
+        .icon-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1), transparent);
         }
 
         .app-label {
-            margin-top: 12px;
-            font-size: 0.85rem;
+            margin-top: 14px;
+            font-size: 0.9rem;
             font-weight: 500;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            opacity: 0.8;
-            transition: opacity 0.3s ease;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+            opacity: 0.85;
+            transition: all 0.3s ease;
             white-space: nowrap;
         }
 
         /* Hover States */
         .app-item:hover {
-            transform: scale(1.15) !important; /* Scale overrides our dynamic positioning scale slightly */
             z-index: 10;
         }
 
         .app-item:hover .icon-wrapper {
+            transform: scale(1.1);
             border-color: var(--accent);
-            box-shadow: 0 0 25px var(--accent);
+            box-shadow: 0 0 30px var(--accent);
         }
 
         .app-item:hover .app-label {
             opacity: 1;
             color: var(--accent);
+            transform: translateY(2px);
         }
 
-        /* Bottom Navbar placeholder for look/feel */
+        /* Bottom Navbar */
         .dock {
             position: fixed;
-            bottom: 30px;
+            bottom: 40px;
             display: flex;
-            gap: 25px;
-            padding: 15px 30px;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(15px);
-            border-radius: 30px;
+            gap: 20px;
+            padding: 12px 25px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
             border: 1px solid var(--glass-border);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            animation: fadeInUp 1s ease-out 0.5s both;
         }
 
         .dock-item {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             background: var(--glass);
-            border-radius: 12px;
-            opacity: 0.7;
+            border-radius: 14px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .dock-item:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-5px);
+            border-color: var(--glass-border);
         }
 
         @keyframes fadeInDown {
-            from { opacity: 0; transform: translateY(-20px); }
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes rotateIn {
-            from { opacity: 0; transform: rotate(-45deg) scale(0.8); }
-            to { opacity: 1; transform: rotate(0) scale(1); }
+            from { opacity: 0; transform: translate(-50%, -50%) rotate(-60deg) scale(0.7); }
+            to { opacity: 1; transform: translate(-50%, -50%) rotate(0) scale(1); }
         }
 
         /* Mobile specific adjustments */
         @media (max-width: 600px) {
             .wheel-container {
-                width: 100vw;
-                height: 100vw;
+                width: 90vw;
+                height: 90vw;
             }
             .ring-guide {
-                width: 75vw;
-                height: 75vw;
+                width: 70vw;
+                height: 70vw;
             }
-            .welcome-text {
-                font-size: 1.8rem;
+            .icon-wrapper {
+                width: 70px;
+                height: 70px;
+                border-radius: 18px;
+            }
+            .dock {
+                bottom: 20px;
+                gap: 15px;
             }
         }
     </style>
@@ -190,7 +238,6 @@
     <div class="wheel-container" id="wheel">
         <div class="ring-guide"></div>
         
-        <!-- Apps will be positioned by JavaScript -->
         <a href="editor.html" class="app-item">
             <div class="icon-wrapper"></div>
             <span class="app-label">Code Editor</span>
@@ -213,34 +260,42 @@
     </div>
 
     <div class="dock">
-        <div class="dock-item"></div>
-        <div class="dock-item"></div>
-        <div class="dock-item"></div>
+        <div class="dock-item" title="Settings"></div>
+        <div class="dock-item" title="Files"></div>
+        <div class="dock-item" title="Terminal"></div>
     </div>
 
     <script>
         function arrangeApps() {
             const items = document.querySelectorAll('.app-item');
             const total = items.length;
-            const radius = window.innerWidth < 600 ? (window.innerWidth * 0.375) : 200; // Responsive radius
+            const wheel = document.getElementById('wheel');
+            
+            // Calculate radius based on the container size
+            const containerWidth = wheel.offsetWidth;
+            const radius = containerWidth * 0.4;
             
             items.forEach((item, index) => {
-                // Calculate angle: distribute evenly around the circle
-                // Starting at -90 degrees (top)
+                // Distribute evenly. 
+                // index / total * 360 degrees
+                // -90 degrees offset to start from the top center
                 const angle = (index / total) * 2 * Math.PI - (Math.PI / 2);
                 
                 const x = Math.cos(angle) * radius;
                 const y = Math.sin(angle) * radius;
                 
+                // Using setProperty for cleaner transition handling if needed
                 item.style.transform = `translate(${x}px, ${y}px)`;
             });
         }
 
-        // Run on load and on resize
+        // Initialize and handle resizing
         window.addEventListener('load', arrangeApps);
-        window.addEventListener('resize', arrangeApps);
+        window.addEventListener('resize', () => {
+            // Use a small timeout to ensure the DOM has updated dimensions
+            setTimeout(arrangeApps, 50);
+        });
     </script>
 </body>
 </html>
-
 
