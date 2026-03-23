@@ -753,17 +753,20 @@
       };
     }
 
-    function spawnEnemies() {
-      const targetX = player.pos.x;
-      const targetZ = player.pos.z;
+   function spawnEnemies() {
+  const targetX = player.pos.x;
+  const targetZ = player.pos.z;
 
-      for(let i = 0; i < 70; i++) {
-        const ang = Math.random() * Math.PI * 2;
-        const dist = 30 + Math.random() * 120;
-        enemies.push(createHuman(targetX + Math.cos(ang) * dist, targetZ + Math.sin(ang) * dist));
-      }
-      updateUI();
-    }
+  for(let i = 0; i < 45; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 140 + Math.random() * 180; // farther away, less chaos
+    enemies.push(createHuman(
+      targetX + Math.cos(ang) * dist,
+      targetZ + Math.sin(ang) * dist
+    ));
+  }
+  updateUI();
+}
 
     function updateUI() {
       document.getElementById('aliveVal').innerText = enemies.filter(e => !e.dead).length + (player.dead ? 0 : 1);
@@ -1373,6 +1376,25 @@
 
         enemies.forEach((e) => {
           if(e.dead) return;
+const distToStormCenter = e.mesh.position.distanceTo(storm.center);
+const stormEdgeBuffer = 60;
+
+if (storm.phase < storm.phases.length && distToStormCenter > storm.currentRadius - stormEdgeBuffer) {
+  const flee = storm.center.clone().sub(e.mesh.position);
+  flee.y = 0;
+
+  if (flee.lengthSq() > 0.0001) {
+    flee.normalize();
+    e.mesh.position.addScaledVector(flee, 8.5 * dt);
+    e.mesh.lookAt(
+      e.mesh.position.x + flee.x,
+      0,
+      e.mesh.position.z + flee.z
+    );
+  }
+  return;
+}
+
           if(b.ownerId !== e.id && b.mesh.position.distanceTo(e.mesh.position.clone().add(new THREE.Vector3(0, 1, 0))) < 1.4) {
             e.hp -= 40;
             e.flashTime = 0.1;
