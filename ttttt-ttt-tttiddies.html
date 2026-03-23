@@ -32,16 +32,17 @@
       letter-spacing: 1px;
     }
 #minimapCanvas {
-  position: absolute;
-  right: 20px;
-  top: 20px;
-  width: 90px;
-  height: 90px;
+  position: fixed;
+  right: 10px;
+  top: 10px;
+  width: 70px;
+  height: 70px;
   background: rgba(0, 15, 30, 0.6);
   border: 2px solid #00ffff;
   border-radius: 6px;
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
   display: none;
+  z-index: 999;
 }
 
     /* Moved kill counter down to accommodate minimap */
