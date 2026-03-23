@@ -11,10 +11,15 @@
       background: #000; font-family: 'Arial Black', Gadget, sans-serif;
       user-select: none; touch-action: none;
     }
-    canvas { 
-      display: block; width: 100vw !important; height: 100vh !important;
-      image-rendering: pixelated; 
-    }
+    canvas#minimapCanvas { 
+  width: 70px !important; 
+  height: 70px !important; 
+  image-rendering: pixelated;
+}
+
+canvas:not(#minimapCanvas) {
+  display: block; width: 100vw; height: 100vh;
+}
 
     #ui { position: fixed; inset: 0; pointer-events: none; color: #fff; z-index: 10; }
 
