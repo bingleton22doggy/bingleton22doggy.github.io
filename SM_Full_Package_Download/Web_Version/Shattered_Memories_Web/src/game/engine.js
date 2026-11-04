@@ -1,6 +1,6 @@
 import { getTextures, TS } from './textures';
 import { buildSprites, OBJECT_SPECS, drawCreature } from './sprites';
-import { generateRoom, bfsField, WALL, WINDOW, DOOR } from './mapgen';
+import { generateRoom, bfsField, WALL, WINDOW, DOOR, ROOM_DOOR } from './mapgen';
 import { Sound } from './audio';
 import { CREATURES, mapById } from './meta';
 
@@ -45,6 +45,8 @@ export class Game {
     this.dust = [];
     this.transition = null;
     this.death = null;
+    this.scare = null;
+    this.threatSoundT = 0;
     this.flareT = 0;
     this.planeLen = Math.tan((70 * Math.PI) / 360);
     this.hud = {
@@ -75,7 +77,8 @@ export class Game {
       lanternOn: false,
       inv: { ...(opts.inventory || {}) },
       hidden: false,
-      hideCabinet: null,
+      hideObject: null,
+      hideExit: null,
       noise: 0,
       stepPhase: 0,
       viewBob: 0,
@@ -172,7 +175,8 @@ export class Game {
     this.player.health = 100;
     this.player.battery = this.player.maxBattery;
     this.player.hidden = false;
-    this.player.hideCabinet = null;
+    this.player.hideObject = null;
+    this.player.hideExit = null;
     this.enterRoom(roomIndex);
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
@@ -197,7 +201,8 @@ export class Game {
     this.player.y = room.spawn.y;
     this.player.ang = room.spawn.ang;
     this.player.hidden = false;
-    this.player.hideCabinet = null;
+    this.player.hideObject = null;
+    this.player.hideExit = null;
     this.hud.room = index;
     this.hud.depth = index;
     this.hud.inv = { ...this.player.inv };
@@ -299,7 +304,7 @@ export class Game {
     const ty = Math.floor(this.player.y + Math.sin(this.player.ang) * d);
     if (tx < 0 || ty < 0 || tx >= this.room.W || ty >= this.room.H) return null;
     const t = this.room.grid[ty * this.room.W + tx];
-    if (t === DOOR) return { x: tx, y: ty, t };
+    if (t === DOOR || t === ROOM_DOOR) return { x: tx, y: ty, t };
     return null;
   }
 
@@ -323,9 +328,15 @@ export class Game {
     const p = this.player;
     if (p.hidden) {
       p.hidden = false;
+      if (p.hideExit) {
+        p.x = p.hideExit.x;
+        p.y = p.hideExit.y;
+      }
+      p.hideObject = null;
+      p.hideExit = null;
       this.hud.hidden = false;
       this.sound.cabinet();
-      this.message('You step back out into the corridor.', 2);
+      this.message('You step back out of your hiding place.', 2);
       return;
     }
     const doorT = this.tileAhead();
@@ -346,12 +357,13 @@ export class Game {
       this.message(o.type === 'key' ? 'Took a brass key.' : 'Took an access card.', 2.4);
       return;
     }
-    if (o.type === 'cabinet') {
+    if (o.type === 'cabinet' || o.type === 'bed') {
       if (!o.open) {
         o.open = true;
-        this.sound.cabinet();
-        this.opts.onDiscover?.('obj.cabinet');
-        this.message('Empty cabinet. Press E again to climb inside.', 3);
+        if (o.type === 'cabinet') this.sound.cabinet();
+        else this.sound.drawer();
+        this.opts.onDiscover?.(o.type === 'cabinet' ? 'obj.cabinet' : 'obj.bed');
+        this.message(o.type === 'bed' ? 'You can crawl under the bed. Press E again to hide.' : 'Empty cabinet. Press E again to climb inside.', 3);
         return;
       }
       this.hideIn(o);
@@ -360,7 +372,7 @@ export class Game {
     if (!o.open) {
       o.open = true;
       this.sound.drawer();
-      this.opts.onDiscover?.(o.type === 'chest' ? 'obj.chest' : 'obj.desk');
+      this.opts.onDiscover?.(o.type === 'chest' ? 'obj.chest' : o.type === 'dresser' ? 'obj.dresser' : 'obj.desk');
       this.collectLoot(o);
       return;
     }
@@ -401,23 +413,34 @@ export class Game {
 
   hideIn(o) {
     const p = this.player;
+    p.hideExit = { x: p.x, y: p.y };
     p.hidden = true;
-    p.hideCabinet = o;
+    p.hideObject = o;
     p.x = o.x;
     p.y = o.y;
     this.hud.hidden = true;
-    this.sound.cabinet();
-    this.opts.onDiscover?.('obj.cabinet');
+    if (o.type === 'cabinet') this.sound.cabinet();
+    else this.sound.drawer();
+    this.opts.onDiscover?.(o.type === 'cabinet' ? 'obj.cabinet' : 'obj.bed');
     const near = this.creatures.find((c) => Math.hypot(c.x - p.x, c.y - p.y) < 2.6);
     if (near) {
       near.heardYou = true;
       this.message('It saw you go in.', 3);
     } else {
-      this.message('Inside the cabinet. Press E to climb out.', 3.5);
+      this.message(o.type === 'bed' ? 'Under the bed. Press E to crawl out.' : 'Inside the cabinet. Press E to climb out.', 3.5);
     }
   }
 
   tryDoor() {
+    const door = this.tileAhead();
+    if (door?.t === ROOM_DOOR && this.room.roomDoor && !this.room.roomDoor.open) {
+      this.room.grid[door.y * this.room.W + door.x] = 0;
+      this.room.roomDoor.open = true;
+      this.sound.door();
+      this.opts.onDiscover?.('obj.room');
+      this.message('The brown door opens into a furnished room.', 3);
+      return;
+    }
     const ex = this.room.exit;
     if (ex.lock) {
       const need = ex.lock;
@@ -541,6 +564,10 @@ export class Game {
         this.transition = null;
       }
     }
+    if (this.scare) {
+      this.scare.t -= dt;
+      if (this.scare.t <= 0) this.scare = null;
+    }
 
     // ---- player movement ----
     const k = this.keys;
@@ -619,21 +646,25 @@ export class Game {
 
     // ---- prompt ----
     let prompt = '';
-    if (p.hidden) prompt = 'E — leave the cabinet';
+    if (p.hidden) prompt = 'E — leave hiding place';
     else {
       const near = this.nearestObject();
       const doorT = this.tileAhead();
       if (near) {
         const o = near.o;
         if (o.type === 'cabinet') prompt = o.open ? 'E — hide inside' : 'E — open cabinet';
+        else if (o.type === 'bed') prompt = o.open ? 'E — hide under bed' : 'E — look under bed';
         else if (o.type === 'chest') prompt = o.searched ? 'Empty footlocker' : 'E — search footlocker';
-        else if (o.type === 'desk') prompt = o.searched ? 'Empty drawer' : 'E — search drawer';
+        else if (o.type === 'desk' || o.type === 'dresser') prompt = o.searched ? 'Empty drawers' : 'E — search drawers';
         else if (o.type === 'key') prompt = 'E — take key';
         else if (o.type === 'card') prompt = 'E — take card';
       }
       if (doorT && (!near || near.d > 1.0)) {
-        const lock = this.room.exit.lock;
-        prompt = lock ? `Locked — needs ${lock === 'key' ? 'a key' : 'a card'}` : 'E — open door and descend';
+        if (doorT.t === ROOM_DOOR) prompt = 'E — open brown door';
+        else {
+          const lock = this.room.exit.lock;
+          prompt = lock ? `Locked — needs ${lock === 'key' ? 'a key' : 'a card'}` : 'E — open door and descend';
+        }
       }
     }
     hud.prompt = prompt;
@@ -695,10 +726,17 @@ export class Game {
     }
     for (const c of this.creatures) this.updateCreature(c, dt);
     this.creatures = this.creatures.filter((c) => !c.gone);
+    const threatDistance = this.creatures.reduce((nearest, c) => Math.min(nearest, Math.hypot(c.x - p.x, c.y - p.y)), Infinity);
+    this.sound.setThreatDistance(threatDistance);
+    this.threatSoundT -= dt;
+    if (threatDistance < 10 && this.threatSoundT <= 0) {
+      this.sound.threat();
+      this.threatSoundT = Math.max(0.3, threatDistance * 0.12);
+    }
   }
 
-  blocked(x, y) {
-    const r = 0.2;
+  blocked(x, y, entity = false) {
+    const r = entity ? 0.22 : 0.2;
     const room = this.room;
     for (const [ox, oy] of [
       [-r, -r],
@@ -715,7 +753,7 @@ export class Game {
       if (o.taken) continue;
       const spec = OBJECT_SPECS[o.type];
       if (!spec || !spec.solid) continue;
-      if (o === this.player.hideCabinet && this.player.hidden) continue;
+      if (o === this.player.hideObject && this.player.hidden && !entity) continue;
       if (Math.hypot(o.x - x, o.y - y) < spec.solid + r) return true;
     }
     return false;
@@ -776,6 +814,7 @@ export class Game {
       passT: 0,
       heardYou: false,
       observed: false,
+      scareCooldown: 0,
       target: null,
       gone: false,
     });
@@ -795,8 +834,14 @@ export class Game {
     let diff = Math.abs(((toPlayer - p.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
     const observed = diff < this.planeLen * 0.9 + 0.12 && dist < 15 && this.losClear(c.x, c.y, p.x, p.y);
     c.observed = observed;
+    c.scareCooldown = Math.max(0, c.scareCooldown - dt);
+    if (!p.hidden && observed && dist < 3.2 && c.scareCooldown <= 0) {
+      this.scare = { type: c.type, t: 0.38 };
+      c.scareCooldown = 6;
+      this.sound.screech();
+    }
 
-    let speed = c.cfg.speed * (1 + Math.min(0.5, this.roomIndex * 0.012));
+    let speed = c.cfg.speed * (1.25 + Math.min(0.55, this.roomIndex * 0.012));
     if (c.type === 'mime' && observed && !p.hidden) speed = 0;
     if (c.type === 'vigil' && observed && !p.hidden) speed = 0;
     if (c.type === 'vigil' && !observed) speed *= 1.15;
@@ -879,15 +924,8 @@ export class Game {
     const d = Math.hypot(dx, dy) || 1;
     const nx = c.x + (dx / d) * speed * dt;
     const ny = c.y + (dy / d) * speed * dt;
-    const g2x = Math.floor(nx);
-    const g2y = Math.floor(ny);
-    if (this.room.grid[g2y * W + g2x] === 0) {
-      c.x = nx;
-      c.y = ny;
-    } else {
-      c.y = c.y + (dy / d) * speed * dt * 0.5;
-      c.x = c.x + (dx / d) * speed * dt * 0.5;
-    }
+    if (!this.blocked(nx, c.y, true)) c.x = nx;
+    if (!this.blocked(c.x, ny, true)) c.y = ny;
   }
 
   die(type, overrideCause) {
@@ -1062,7 +1100,7 @@ export class Game {
       if (texX > TS - 1) texX = TS - 1;
       let tdata;
       if (tile === WINDOW) tdata = winTex.data;
-      else if (tile === DOOR) tdata = room.exit && room.exit.gx === mapX && room.exit.gy === mapY ? tex.exit.data : tex.door.data;
+      else if (tile === DOOR || tile === ROOM_DOOR) tdata = tile === ROOM_DOOR ? tex.door.data : room.exit && room.exit.gx === mapX && room.exit.gy === mapY ? tex.exit.data : tex.door.data;
       else {
         const hash = ((mapX * 73856093) ^ (mapY * 19349663)) >>> 0;
         tdata = hash % 5 === 0 ? tex.wall2.data : tex.wall.data;
@@ -1096,8 +1134,10 @@ export class Game {
       if (!spec) continue;
       let spr = null;
       if (o.type === 'cabinet') spr = o.open ? this.sprites.objects.cabinetOpen : this.sprites.objects.cabinetClosed;
+      else if (o.type === 'bed') spr = o.open ? this.sprites.objects.bedOpen : this.sprites.objects.bedClosed;
       else if (o.type === 'chest') spr = o.open ? this.sprites.objects.chestOpen : this.sprites.objects.chestClosed;
       else if (o.type === 'desk') spr = o.open ? this.sprites.objects.deskOpen : this.sprites.objects.deskClosed;
+      else if (o.type === 'dresser') spr = o.open ? this.sprites.objects.dresserOpen : this.sprites.objects.dresserClosed;
       else if (o.type === 'key') spr = this.sprites.objects.key;
       else if (o.type === 'card') spr = this.sprites.objects.card;
       if (!spr) continue;
@@ -1256,6 +1296,17 @@ export class Game {
         c.lineTo(fit.x + fit.w * 0.95, yy);
         c.stroke();
       }
+    }
+
+    if (this.scare) {
+      const pulse = Math.min(1, this.scare.t / 0.12);
+      c.fillStyle = `rgba(150,0,0,${0.3 * pulse})`;
+      c.fillRect(fit.x, fit.y, fit.w, fit.h);
+      const size = 0.95 + (0.38 - this.scare.t) * 0.8;
+      c.save();
+      c.translate(fit.x + fit.w / 2, fit.y + fit.h / 2);
+      drawCreature(c, this.scare.type, this.time * 2.6, fit.w * size, fit.h * size, {});
+      c.restore();
     }
 
     if (this.death) {

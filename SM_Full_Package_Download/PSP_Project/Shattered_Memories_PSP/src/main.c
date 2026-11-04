@@ -14,6 +14,7 @@
 #include <pspgu.h>
 #include <pspgum.h>
 #include <psppower.h>
+#include <pspaudio.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -195,16 +196,23 @@ static int playerTile;
 static int roomNum = 1;
 static float px = 2.5f, py = 2.5f, ang = 0.0f;
 
-static int objX[8], objY[8], objType[8], objOpen[8], objN = 0;
+static int objX[16], objY[16], objType[16], objOpen[16], objN = 0;
 #define OBJ_CABINET 0
 #define OBJ_CHEST 1
 #define OBJ_DESK 2
+#define OBJ_BED 3
+#define OBJ_DRESSER 4
 
 static int coinX[6], coinY[6], coinN = 0;
 
 static int health = 100, battery = 100, coins = 0, hasKey = 0, lampOn = 0;
 static int hiddenCab = -1;
+static float hideExitX = 0.0f, hideExitY = 0.0f;
 static int doorX = -1, doorY = -1, doorLocked = 0, exitX = 1, exitY = 1;
+static int roomDoorX = -1, roomDoorY = -1;
+static int scareTimer = 0, scareCooldown = 0;
+static int audioChannel = -1;
+static float threatPhase = 0.0f;
 
 static int creActive = 0, creType = 0;
 static float creX = 0, creY = 0;
@@ -225,6 +233,28 @@ static void setMsg(const char *s) {
 	strncpy(msg, s, sizeof(msg) - 1);
 	msg[sizeof(msg) - 1] = 0;
 	msgTimer = 150;
+}
+
+static void initThreatAudio(void) {
+	audioChannel = sceAudioChReserve(-1, 256, PSP_AUDIO_FORMAT_MONO);
+}
+
+static void playThreatAudio(float distance) {
+	short samples[256];
+	float gain, frequency;
+	int i;
+	if (audioChannel < 0 || distance >= 10.0f) return;
+	gain = 0.05f + (10.0f - distance) * 0.045f;
+	if (gain > 0.48f) gain = 0.48f;
+	frequency = 42.0f + (10.0f - distance) * 5.0f;
+	for (i = 0; i < 256; i++) {
+		float noise = ((int)(rnd() & 0xffff) - 32768) / 32768.0f;
+		float wave = sinf(threatPhase) * 0.78f + noise * 0.22f;
+		samples[i] = (short)(wave * gain * 32767.0f);
+		threatPhase += 6.2831853f * frequency / 44100.0f;
+		if (threatPhase > 6.2831853f) threatPhase -= 6.2831853f;
+	}
+	sceAudioOutputBlocking(audioChannel, 0x8000, samples);
 }
 
 static void bfsFrom(int sx, int sy, int *dist) {
@@ -275,6 +305,7 @@ static void genRoom(void) {
 	creActive = 0;
 	hiddenCab = -1;
 	doorX = doorY = -1;
+	roomDoorX = roomDoorY = -1;
 
 	/* recursive-backtracker maze on odd cells */
 	map[1 * MAP_W + 1] = 0;
@@ -363,14 +394,53 @@ static void genRoom(void) {
 	doorLocked = (roomNum > 2 && rndi(100) < 45) ? 1 : 0;
 	hasKey = 0;
 
+	for (y = 2; y < MAP_H - 3 && roomDoorX < 0; y++) {
+		for (x = 2; x < MAP_W - 4; x++) {
+			int clear = map[y * MAP_W + x - 1] == 0;
+			int xx, yy;
+			for (yy = y - 1; yy <= y + 1 && clear; yy++) {
+				for (xx = x; xx <= x + 2; xx++) {
+					if (map[yy * MAP_W + xx] != 1) { clear = 0; break; }
+				}
+			}
+			if (!clear) continue;
+			roomDoorX = x;
+			roomDoorY = y + 1;
+			map[roomDoorY * MAP_W + roomDoorX] = 4;
+			for (yy = y; yy <= y + 2; yy++) {
+				map[yy * MAP_W + x + 1] = 0;
+				map[yy * MAP_W + x + 2] = 0;
+			}
+			break;
+		}
+	}
+	if (roomDoorX < 0) {
+		for (y = 2; y < MAP_H - 2 && roomDoorX < 0; y++) {
+			for (x = 2; x < MAP_W - 4; x++) {
+				if (map[y * MAP_W + x - 1] != 0 || map[y * MAP_W + x] != 1) continue;
+				roomDoorX = x;
+				roomDoorY = y;
+				map[y * MAP_W + x] = 4;
+				map[(y - 1) * MAP_W + x + 1] = 0;
+				map[y * MAP_W + x + 1] = 0;
+				map[(y + 1) * MAP_W + x + 1] = 0;
+				map[(y - 1) * MAP_W + x + 2] = 0;
+				map[y * MAP_W + x + 2] = 0;
+				map[(y + 1) * MAP_W + x + 2] = 0;
+				break;
+			}
+		}
+	}
+
 	/* furniture in dead ends */
 	{
 		int order[6] = {OBJ_CABINET, OBJ_CHEST, OBJ_DESK, OBJ_CABINET, OBJ_CHEST, OBJ_DESK};
-		for (y = 1; y < MAP_H - 1 && objN < 6; y++) {
-			for (x = 1; x < MAP_W - 1 && objN < 6; x++) {
+		for (y = 1; y < MAP_H - 1 && objN < 9; y++) {
+			for (x = 1; x < MAP_W - 1 && objN < 9; x++) {
 				int ni = y * MAP_W + x;
 				int far = abs(x - (int)px) + abs(y - (int)py);
 				if (map[ni] != 0 || far < 3) continue;
+				if (roomDoorX >= 0 && x >= roomDoorX + 1 && x <= roomDoorX + 2 && abs(y - roomDoorY) <= 1) continue;
 				if (x == exitX && y == exitY) continue;
 				if (openNeighbours(x, y) > 1) continue;
 				if (rndi(100) < 35) continue;
@@ -382,6 +452,14 @@ static void genRoom(void) {
 				objN++;
 			}
 		}
+	}
+	if (roomDoorX >= 0 && objN <= 13) {
+		objX[objN] = roomDoorX + 2; objY[objN] = roomDoorY - 1; objType[objN] = OBJ_BED; objOpen[objN++] = 0;
+		objX[objN] = roomDoorX + 2; objY[objN] = roomDoorY; objType[objN] = OBJ_CABINET; objOpen[objN++] = 0;
+		objX[objN] = roomDoorX + 2; objY[objN] = roomDoorY + 1; objType[objN] = OBJ_DRESSER; objOpen[objN++] = 0;
+		blocked[objY[objN - 3] * MAP_W + objX[objN - 3]] = 1;
+		blocked[objY[objN - 2] * MAP_W + objX[objN - 2]] = 1;
+		blocked[objY[objN - 1] * MAP_W + objX[objN - 1]] = 1;
 	}
 
 	/* loose coins */
@@ -494,7 +572,8 @@ static void drawWalls(void) {
 			int sh = (int)(col * (1.0f - perp / 14.0f));
 			if (sh < 22) sh = 22;
 			if (sh > 255) sh = 255;
-			col = RGB(sh, sh, (int)(sh * 0.94f));
+			if (tile == 4) col = RGB(sh, (int)(sh * 0.68f), (int)(sh * 0.42f));
+			else col = RGB(sh, sh, (int)(sh * 0.94f));
 		}
 
 		v[n].u = (float)texX;      v[n].v = 0.0f;  v[n].color = col; v[n].x = (float)x;      v[n].y = (float)y0; v[n].z = 0; n++;
@@ -553,6 +632,10 @@ static void drawSprites(void) {
 		if (d > 12) continue;
 		if (objType[i] == OBJ_CABINET)
 			drawBillboard(objX[i] + 0.5f, objY[i] + 0.5f, 0, 0.7f, 1.35f, RGB(210, 210, 205));
+		else if (objType[i] == OBJ_BED)
+			drawBillboard(objX[i] + 0.5f, objY[i] + 0.5f, 1, 1.05f, 0.55f, RGB(225, 215, 200));
+		else if (objType[i] == OBJ_DRESSER)
+			drawBillboard(objX[i] + 0.5f, objY[i] + 0.5f, 0, 0.62f, 0.95f, RGB(180, 155, 125));
 		else if (objType[i] == OBJ_CHEST)
 			drawBillboard(objX[i] + 0.5f, objY[i] + 0.5f, 1, 0.75f, 0.6f, RGB(225, 215, 200));
 		else
@@ -655,6 +738,12 @@ static int solid(float x, float y) {
 	return 0;
 }
 
+static int solidEntity(float x, float y) {
+	int gx = (int)x, gy = (int)y;
+	if (gx < 0 || gy < 0 || gx >= MAP_W || gy >= MAP_H) return 1;
+	return map[gy * MAP_W + gx] != 0 || blocked[gy * MAP_W + gx];
+}
+
 static void tryMove(float nx, float ny) {
 	if (!solid(nx, py)) px = nx;
 	if (!solid(px, ny)) py = ny;
@@ -683,6 +772,8 @@ static void interact(void) {
 
 	if (hiddenCab >= 0) {
 		hiddenCab = -1;
+		px = hideExitX;
+		py = hideExitY;
 		setMsg("OUT OF THE CABINET");
 		return;
 	}
@@ -694,6 +785,11 @@ static void interact(void) {
 			best = i;
 		}
 	}
+	if (tile == 4 && (best < 0 || bestD > 1.0f)) {
+		map[ty * MAP_W + tx] = 0;
+		setMsg("THE BROWN DOOR OPENS");
+		return;
+	}
 	if (tile == 3 && (best < 0 || bestD > 1.0f)) {
 		if (doorLocked && !hasKey) {
 			setMsg("NEED A KEY");
@@ -704,19 +800,21 @@ static void interact(void) {
 		return;
 	}
 	if (best < 0) return;
-	if (objType[best] == OBJ_CABINET) {
+	if (objType[best] == OBJ_CABINET || objType[best] == OBJ_BED) {
 		if (hiddenCab == best) {
 			hiddenCab = -1;
 			setMsg("OUT OF THE CABINET");
 		} else if (!objOpen[best]) {
 			objOpen[best] = 1;
-			setMsg("PRESS CIRCLE TO HIDE");
+			setMsg(objType[best] == OBJ_BED ? "PRESS X TO HIDE UNDER BED" : "PRESS X TO HIDE");
 		} else {
+			hideExitX = px;
+			hideExitY = py;
 			hiddenCab = best;
 			px = objX[best] + 0.5f;
 			py = objY[best] + 0.5f;
 			creActive = (creActive && sqrtf((creX - px) * (creX - px) + (creY - py) * (creY - py)) < 2.6f) ? 1 : 0;
-			setMsg("HIDDEN - CIRCLE TO EXIT");
+			setMsg(objType[best] == OBJ_BED ? "UNDER BED - CIRCLE TO EXIT" : "HIDDEN - CIRCLE TO EXIT");
 		}
 	} else {
 		int gain = 2 + rndi(6);
@@ -732,20 +830,53 @@ static void interact(void) {
 
 static void updateCreature(float dt) {
 	float dx, dy, d, speed;
+	float targetX = px, targetY = py;
 	if (!creActive) return;
 	dx = px - creX;
 	dy = py - creY;
 	d = sqrtf(dx * dx + dy * dy);
 	if (d < 0.001f) d = 0.001f;
-	speed = 1.5f + roomNum * 0.02f;
+	speed = 2.5f + roomNum * 0.03f;
 	if (hiddenCab >= 0) speed *= 0.55f;
 	if (d < 0.85f && hiddenCab < 0) {
 		health -= 100;
 		creActive = 0;
 		return;
 	}
-	creX += (dx / d) * speed * dt;
-	creY += (dy / d) * speed * dt;
+	{
+		int path[CELLS];
+		int gx = (int)creX, gy = (int)creY;
+		int here = -1, best = 0x7fffffff;
+		int targetCell = -1, k;
+		int ddx[4] = {1, -1, 0, 0}, ddy[4] = {0, 0, 1, -1};
+		float moveDx, moveDy, moveD;
+		bfsFrom((int)px, (int)py, path);
+		if (gx >= 0 && gy >= 0 && gx < MAP_W && gy < MAP_H) here = path[gy * MAP_W + gx];
+		for (k = 0; here > 0 && k < 4; k++) {
+			int nxCell = gx + ddx[k], nyCell = gy + ddy[k];
+			int value;
+			if (nxCell < 0 || nyCell < 0 || nxCell >= MAP_W || nyCell >= MAP_H) continue;
+			value = path[nyCell * MAP_W + nxCell];
+			if (value >= 0 && value < best && value < here) {
+				best = value;
+				targetCell = nyCell * MAP_W + nxCell;
+			}
+		}
+		if (targetCell >= 0) {
+			targetX = targetCell % MAP_W + 0.5f;
+			targetY = targetCell / MAP_W + 0.5f;
+		}
+		moveDx = targetX - creX;
+		moveDy = targetY - creY;
+		moveD = sqrtf(moveDx * moveDx + moveDy * moveDy);
+		if (moveD < 0.001f) moveD = 0.001f;
+		{
+			float nx = creX + (moveDx / moveD) * speed * dt;
+			float ny = creY + (moveDy / moveD) * speed * dt;
+		if (!solidEntity(nx, creY)) creX = nx;
+		if (!solidEntity(creX, ny)) creY = ny;
+		}
+	}
 	if (hiddenCab >= 0 && d < 1.2f) {
 		/* it passes the hiding place and moves on */
 		creX -= (dx / d) * 6.0f;
@@ -817,6 +948,7 @@ int main(int argc, char *argv[]) {
 	buildSpriteAtlas();
 	buildFont();
 	initGu();
+	initThreatAudio();
 
 	sceCtrlSetSamplingCycle(0);
 	sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
@@ -867,6 +999,8 @@ int main(int argc, char *argv[]) {
 			if (pad.Buttons & PSP_CTRL_CIRCLE) {
 				if (hiddenCab >= 0) {
 					hiddenCab = -1;
+					px = hideExitX;
+					py = hideExitY;
 					setMsg("OUT OF THE CABINET");
 				}
 				sceKernelDelayThread(160000);
@@ -906,6 +1040,20 @@ int main(int argc, char *argv[]) {
 			distortAmt = 0;
 
 			updateCreature(dt);
+			if (creActive) {
+				float threatDistance = sqrtf((creX - px) * (creX - px) + (creY - py) * (creY - py));
+				playThreatAudio(threatDistance);
+			}
+			if (scareTimer > 0) scareTimer--;
+			if (scareCooldown > 0) scareCooldown--;
+			if (creActive && hiddenCab < 0) {
+				float scareDist = sqrtf((creX - px) * (creX - px) + (creY - py) * (creY - py));
+				if (scareDist < 3.0f && scareCooldown <= 0) {
+					scareTimer = 18;
+					scareCooldown = 300;
+					shakeAmt = 1.0f;
+				}
+			}
 
 			/* creature encounters start after a while in a room */
 			{
@@ -943,6 +1091,15 @@ int main(int argc, char *argv[]) {
 			sceGuEnable(GU_TEXTURE_2D);
 		}
 		drawHud(fps, showPerfNow);
+		if (scareTimer > 0) {
+			float pulse = (float)scareTimer / 18.0f;
+			sceGuDisable(GU_TEXTURE_2D);
+			quad2d(SCR_W / 2 - 74, SCR_H / 2 - 84, 148, 168, RGB(12, 9, 10));
+			quad2d(SCR_W / 2 - 54, SCR_H / 2 - 36, 28, 12, RGB(188, 20, 16));
+			quad2d(SCR_W / 2 + 26, SCR_H / 2 - 36, 28, 12, RGB(188, 20, 16));
+			quad2d(SCR_W / 2 - 26, SCR_H / 2 + 24, 52, (1.0f - pulse) * 32 + 3, RGB(74, 12, 12));
+			sceGuEnable(GU_TEXTURE_2D);
+		}
 
 		if (paused) {
 			sceGuDisable(GU_TEXTURE_2D);
@@ -970,6 +1127,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	sceGuTerm();
+	if (audioChannel >= 0) sceAudioChRelease(audioChannel);
 	sceKernelExitGame();
 	return 0;
 }

@@ -5,6 +5,7 @@ export class Sound {
     this.master = null;
     this.noiseBuf = null;
     this.droneNodes = null;
+    this.threatGain = 0;
   }
 
   init() {
@@ -36,6 +37,16 @@ export class Sound {
 
   get ok() {
     return !!this.ctx;
+  }
+
+  setThreatDistance(distance) {
+    this.threatGain = Number.isFinite(distance) ? Math.max(0, Math.min(1, (10 - distance) / 9)) : 0;
+  }
+
+  threat() {
+    if (this.threatGain <= 0) return;
+    this.noise(0.5, 0.045 + this.threatGain * 0.17, 100 + this.threatGain * 150, 1.1, 0, 'lowpass');
+    this.tone(54 + this.threatGain * 34, 0.42, 'sine', 0.035 + this.threatGain * 0.12);
   }
 
   now() {

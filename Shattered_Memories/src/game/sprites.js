@@ -267,6 +267,87 @@ function drawDesk(ctx, open, W = 64, H = 48) {
   ctx.fillRect(9, 14, W - 18, 1.5);
 }
 
+function drawDresser(ctx, open, W = 58, H = 76) {
+  ell(ctx, W / 2, H - 2, 22, 4, 'rgba(0,0,0,0.48)');
+  ctx.fillStyle = '#29231c';
+  ctx.fillRect(10, H - 10, 7, 9);
+  ctx.fillRect(W - 17, H - 10, 7, 9);
+  ctx.fillStyle = '#533c29';
+  ctx.beginPath();
+  ctx.moveTo(8, 12);
+  ctx.lineTo(W - 8, 12);
+  ctx.lineTo(W - 6, H - 8);
+  ctx.lineTo(6, H - 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#79593a';
+  ctx.beginPath();
+  ctx.moveTo(5, 12);
+  ctx.lineTo(W - 5, 12);
+  ctx.lineTo(W - 10, 6);
+  ctx.lineTo(10, 6);
+  ctx.closePath();
+  ctx.fill();
+  for (let i = 0; i < 3; i++) {
+    const y = 18 + i * 17;
+    const pulled = open && i === 1 ? 5 : 0;
+    ctx.fillStyle = '#38281b';
+    ctx.fillRect(12, y, W - 24, 14);
+    ctx.fillStyle = i === 1 && open ? '#21180f' : '#65482d';
+    ctx.fillRect(10 + pulled, y - 1, W - 20, 12);
+    ctx.fillStyle = '#b7a177';
+    ctx.fillRect(W / 2 - 3 + pulled, y + 4, 6, 2);
+    ctx.fillStyle = 'rgba(255,230,190,0.12)';
+    ctx.fillRect(12 + pulled, y, W - 24, 1.4);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(8, H - 9, W - 16, 2);
+}
+
+function drawBed(ctx, open, W = 84, H = 50) {
+  ell(ctx, W / 2, H - 2, 34, 4, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle = '#34261c';
+  ctx.fillRect(13, 19, W - 25, 22);
+  ctx.fillStyle = '#68482d';
+  ctx.beginPath();
+  ctx.moveTo(9, 18);
+  ctx.lineTo(W - 8, 18);
+  ctx.lineTo(W - 14, 43);
+  ctx.lineTo(15, 43);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#8a6847';
+  ctx.fillRect(8, 14, W - 16, 7);
+  ctx.fillStyle = '#b7a78e';
+  ctx.beginPath();
+  ctx.moveTo(13, 12);
+  ctx.lineTo(W - 13, 12);
+  ctx.lineTo(W - 17, 26);
+  ctx.lineTo(18, 26);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#c9b9a0';
+  ctx.fillRect(17, 10, 21, 8);
+  ctx.fillStyle = '#5c3830';
+  ctx.beginPath();
+  ctx.moveTo(39, 18);
+  ctx.lineTo(W - 14, 18);
+  ctx.lineTo(W - 17, 29);
+  ctx.lineTo(41, 28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#241a14';
+  ctx.fillRect(18, 43, 5, 6);
+  ctx.fillRect(W - 23, 43, 5, 6);
+  if (open) {
+    ctx.fillStyle = 'rgba(4,5,5,0.86)';
+    ctx.fillRect(18, 30, W - 36, 12);
+    ctx.fillStyle = 'rgba(150,0,0,0.18)';
+    ctx.fillRect(29, 34, 2, 2);
+    ctx.fillRect(W - 31, 34, 2, 2);
+  }
+}
+
 function drawCoin(ctx, f) {
   const W = 16;
   const H = 16;
@@ -311,8 +392,10 @@ function drawKey(ctx, card) {
 
 export const OBJECT_SPECS = {
   cabinet: { w: 0.56, h: 1.0, solid: 0.36, interact: 'Hide inside', hides: true },
+  bed: { w: 0.94, h: 0.56, solid: 0.42, interact: 'Hide under bed', hides: true },
   chest: { w: 0.46, h: 0.40, solid: 0.32, interact: 'Search footlocker' },
   desk: { w: 0.60, h: 0.42, solid: 0.34, interact: 'Search drawer' },
+  dresser: { w: 0.66, h: 0.92, solid: 0.37, interact: 'Search drawers' },
   coin: { w: 0.16, h: 0.16, solid: 0, interact: '' },
   key: { w: 0.2, h: 0.14, solid: 0, interact: 'Take key' },
   card: { w: 0.22, h: 0.14, solid: 0, interact: 'Take card' },
@@ -797,8 +880,12 @@ export function buildSprites() {
     chestOpen: sprite(56, 46, (c) => drawChest(c, true)),
     cabinetClosed: sprite(48, 96, (c) => drawCabinet(c, false)),
     cabinetOpen: sprite(48, 96, (c) => drawCabinet(c, true)),
+    bedClosed: sprite(84, 50, (c) => drawBed(c, false)),
+    bedOpen: sprite(84, 50, (c) => drawBed(c, true)),
     deskClosed: sprite(64, 48, (c) => drawDesk(c, false)),
     deskOpen: sprite(64, 48, (c) => drawDesk(c, true)),
+    dresserClosed: sprite(58, 76, (c) => drawDresser(c, false)),
+    dresserOpen: sprite(58, 76, (c) => drawDresser(c, true)),
     coins: [0, 1, 2, 3].map((f) => sprite(16, 16, (c) => drawCoin(c, f))),
     key: sprite(20, 14, (c) => drawKey(c, false)),
     card: sprite(20, 14, (c) => drawKey(c, true)),

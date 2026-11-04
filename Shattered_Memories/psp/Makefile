@@ -8,7 +8,7 @@ ASFLAGS = $(CFLAGS)
 LIBDIR =
 LDFLAGS =
 
-LIBS = -lpsppower -lpspgu -lpspgum -lm -lpspctrl -lpspdisplay -lpspkernel
+LIBS = -lpsppower -lpspaudio -lpspgu -lpspgum -lm -lpspctrl -lpspdisplay -lpspkernel
 
 BUILD_PRX = 1
 PSP_FW_VERSION = 371

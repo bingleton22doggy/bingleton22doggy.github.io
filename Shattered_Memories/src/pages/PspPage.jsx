@@ -45,7 +45,7 @@ export default function PspPage() {
         <h1 className="sm-title mt-2 text-4xl md:text-5xl">PSP Homebrew</h1>
         <p className="mt-4 max-w-2xl font-body text-[15px] leading-relaxed text-[#a09a8d]">
           A separate native C project for the Sony PSP: PSPSDK structure, GU rendering at 480 × 272
-          in 16:9, procedural rooms, searchable furniture, hiding and creatures. Download the archive,
+          in 16:9, hidden furnished rooms, bed hiding, proximity audio and fast creatures. Download the archive,
           build it with your toolchain, and copy the EBOOT to your memory stick.
         </p>
 
@@ -105,7 +105,7 @@ export default function PspPage() {
               ['Analog stick', 'Move and strafe'],
               ['L / R trigger', 'Look left and right'],
               ['Cross', 'Interact'],
-              ['Circle', 'Hide / leave'],
+              ['Circle', 'Leave hiding place'],
               ['Square', 'Lantern'],
               ['Triangle', 'Index'],
               ['Select', 'FPS · RAM · battery'],

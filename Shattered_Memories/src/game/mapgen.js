@@ -3,6 +3,7 @@ import { RNG } from './rng';
 export const WALL = 1;
 export const WINDOW = 2;
 export const DOOR = 3;
+export const ROOM_DOOR = 4;
 
 const DIRS = [
   [1, 0],
@@ -62,7 +63,7 @@ export function generateRoom({ index = 1, map, danger = 1 }) {
   if (W % 2 === 0) W++;
   if (H % 2 === 0) H++;
 
-  const grid = new Uint8Array(W * H).fill(WALL);
+  let grid = new Uint8Array(W * H).fill(WALL);
   const at = (x, y) => grid[y * W + x];
 
   // --- carve a braided maze of corridors ---
@@ -128,12 +129,32 @@ export function generateRoom({ index = 1, map, danger = 1 }) {
     }
   }
 
-  const cells = [];
-  for (let y = 1; y < H - 1; y++) {
-    for (let x = 1; x < W - 1; x++) if (at(x, y) === 0) cells.push({ x, y });
+  const roomDoorY = rng.pick(
+    Array.from({ length: H - 4 }, (_, i) => i + 2).filter((y) => at(W - 2, y) === 0)
+  );
+  let roomPocket = null;
+  if (roomDoorY !== undefined) {
+    const oldW = W;
+    const expandedW = oldW + 4;
+    const expanded = new Uint8Array(expandedW * H).fill(WALL);
+    for (let y = 0; y < H; y++) expanded.set(grid.subarray(y * oldW, (y + 1) * oldW), y * expandedW);
+    W = expandedW;
+    grid = expanded;
+    roomPocket = { x: oldW - 1, y: roomDoorY };
+    grid[roomDoorY * W + oldW - 1] = ROOM_DOOR;
+    for (let y = roomDoorY - 1; y <= roomDoorY + 1; y++) {
+      for (let x = oldW; x <= oldW + 2; x++) grid[y * W + x] = 0;
+    }
   }
 
-  const room = { W, H, grid, index, seed, themeId: map.id };
+  const cells = [];
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      if (at(x, y) === 0 && (!roomPocket || x < roomPocket.x)) cells.push({ x, y });
+    }
+  }
+
+  const room = { W, H, grid, index, seed, themeId: map.id, roomDoor: roomPocket };
 
   // --- spawn & exit ---
   let spawn = rng.pick(cells);
@@ -204,6 +225,7 @@ export function generateRoom({ index = 1, map, danger = 1 }) {
     cells.filter((c) => {
       if (c.x === exitCell.x && c.y === exitCell.y) return false;
       if (c.x + ',' + c.y === spawnKey) return false;
+      if (roomPocket && c.x >= roomPocket.x && c.x <= roomPocket.x + 3 && Math.abs(c.y - roomPocket.y) <= 1) return false;
       if (Math.abs(c.x - spawn.x) + Math.abs(c.y - spawn.y) < 3) return false;
       let openN = 0;
       for (const [dx, dy] of DIRS) if (at(c.x + dx, c.y + dy) === 0) openN++;
@@ -258,8 +280,8 @@ export function generateRoom({ index = 1, map, danger = 1 }) {
     return true;
   };
 
-  const wanted = ['cabinet', 'chest', 'desk', 'cabinet', 'chest', 'desk', 'cabinet'];
-  const maxObjects = 4 + (index > 2 ? 1 : 0) + (index > 6 ? 1 : 0);
+  const wanted = ['cabinet', 'chest', 'desk', 'cabinet', 'chest', 'dresser', 'bed', 'cabinet'];
+  const maxObjects = 6 + (index > 2 ? 1 : 0) + (index > 6 ? 1 : 0);
   for (const c of candidates) {
     if (objects.length >= maxObjects) break;
     const type = wanted[objects.length] || rng.weighted([
@@ -283,6 +305,26 @@ export function generateRoom({ index = 1, map, danger = 1 }) {
     if (!stillValid()) {
       blocked.delete(key);
       objects.pop();
+    }
+  }
+
+  if (roomPocket) {
+    for (const [type, dy] of [['bed', -1], ['cabinet', 0], ['dresser', 1]]) {
+      const gx = roomPocket.x + 3;
+      const gy = roomPocket.y + dy;
+      const key = gx + ',' + gy;
+      blocked.add(key);
+      objects.push({
+        id: 'o' + n++,
+        type,
+        gx,
+        gy,
+        x: gx + 0.5,
+        y: gy + 0.5,
+        open: false,
+        searched: false,
+        loot: [],
+      });
     }
   }
 

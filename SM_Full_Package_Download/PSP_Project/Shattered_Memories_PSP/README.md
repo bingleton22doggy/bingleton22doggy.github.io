@@ -10,13 +10,16 @@ browser game wrapped in an archive.
 * Raycast corridors: one textured wall column per screen column, DDA against
   a tile grid, per-column distance buffer.
 * Procedural rooms: recursive-backtracker maze, braided loops, widened pockets,
-  dead-end furniture placement, locked exit doors with a key in the room.
+  a hidden brown-door room, extra furniture, and locked exits with keys.
 * Procedural textures generated at boot into 8-bit (T8) paletted textures.
   No PNG/TM2 assets are required except the EBOOT artwork.
-* Searchable footlockers, desks and cabinets; coins; lantern with battery.
-* Hiding: press CIRCLE at an opened cabinet. The creature keeps moving,
-  walks past the hiding place and leaves.
-* Creatures with per-type warning messages, pursuit and a lethal proximity check.
+* Searchable footlockers, desks, dressers and cabinets; hideable beds; coins;
+  lantern with battery.
+* Open a brown door with CROSS to enter its furnished side room. Open a cabinet
+  or bed and press CROSS again to hide; CIRCLE lets you leave the hiding place.
+* Faster creatures respect walls and furniture. A generated low rumble grows
+  louder as one approaches; close encounters trigger a centered visual scare.
+* Creatures have per-type warning messages, pursuit and a lethal proximity check.
 * SELECT toggles the performance overlay: FPS, free RAM (sceKernelTotalFreeMemSize)
   and battery percentage (scePowerGetBatteryLifePercent). These are read from
   the hardware; nothing is hard-coded.
@@ -29,8 +32,8 @@ The PSP has no depth-tested billboard pipeline here, so:
 * Sprites are a single 128x128 paletted atlas (cabinet / chest / creature / coin)
   drawn as alpha-tested billboards.
 * One creature type set of four silhouettes, no per-frame skeletal animation.
-* Particles, screen distortion and 3D jumpscares are reduced to a shake plus a
-  warning message and a fade.
+* Particles and screen distortion are reduced; the jumpscare is a brief 2D face
+  flash rather than a full-screen animated creature model.
 * The shop and the field index are not yet implemented on the PSP; the browser
   build is the reference for those systems.
 
@@ -44,8 +47,8 @@ hidden behind a placeholder.
 | Analog stick | Move / strafe |
 | L trigger | Look left |
 | R trigger | Look right |
-| Cross | Interact (open, search, door) |
-| Circle | Hide / leave hiding place |
+| Cross | Interact, open, search, hide |
+| Circle | Leave hiding place |
 | Square | Lantern |
 | Triangle | Index counter |
 | Select | Performance overlay |
