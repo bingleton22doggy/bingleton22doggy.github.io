@@ -118,7 +118,7 @@ The PSP version is a separate homebrew project.
 
 ### Requirements
 
-- Sony PSP
+- Sony PSP (1000 supported)
 - PSP Custom Firmware (for homebrew installation)
 - PSPSDK development environment
 - PSP-compatible assets
