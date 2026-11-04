@@ -1,0 +1,1 @@
+Shattered Memories downloads\n\nShattered_Memories_Web.zip contains the complete standalone browser-game source project.\nExtract it, run npm install, then npm run dev. It does not need Base44.\n\nShattered_Memories_PSP.zip contains the PSP homebrew source project and menu artwork.\nBuild it with PSPSDK as described in its README.md.\n
