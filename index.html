@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090a08" />
+    <meta name="description" content="Shattered Memories is a procedural survival horror game for the web and PSP." />
+    <link rel="icon" type="image/svg+xml" href="./Shattered_Memories/public/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <title>Shattered Memories | A Hallway Nightmare</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #090a08;
+        --paper: #eee9dc;
+        --muted: #b7b2a5;
+        --rust: #d06b45;
+        --line: rgba(238, 233, 220, 0.2);
+        --mono: "IBM Plex Mono", "Courier New", monospace;
+        --serif: "Cormorant Garamond", Georgia, serif;
+      }
+
+      * { box-sizing: border-box; }
+      html { background: var(--ink); scroll-behavior: smooth; }
+      body { margin: 0; background: var(--ink); color: var(--paper); font-family: var(--mono); }
+      a { color: inherit; }
+
+      .topbar {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        min-height: 76px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 0 clamp(20px, 6vw, 88px);
+        border-bottom: 1px solid var(--line);
+        background: var(--ink);
+      }
+
+      .brand { display: inline-flex; align-items: center; gap: 13px; text-decoration: none; }
+      .brand-mark {
+        display: grid;
+        width: 34px;
+        aspect-ratio: 1;
+        place-items: center;
+        border: 1px solid var(--rust);
+        color: var(--rust);
+        font-family: var(--serif);
+        font-size: 21px;
+      }
+
+      .brand-name, .top-note, .eyebrow, .hero-meta, .section-kicker, .platform-label, .footer-note {
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .brand-name { line-height: 1.5; }
+      .top-note { color: var(--muted); }
+
+      .hero {
+        position: relative;
+        display: flex;
+        min-height: min(680px, calc(100svh - 112px));
+        align-items: center;
+        overflow: hidden;
+        isolation: isolate;
+        padding: 64px clamp(22px, 9vw, 132px) 76px;
+        border-bottom: 1px solid var(--line);
+        background: #10110e;
+      }
+
+      .hero-art {
+        position: absolute;
+        z-index: -2;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 54%;
+      }
+
+      .hero::after {
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        background: rgba(5, 6, 5, 0.58);
+        content: "";
+      }
+
+      .hero-frame {
+        position: absolute;
+        z-index: -1;
+        inset: 22px;
+        border: 1px solid rgba(238, 233, 220, 0.13);
+        pointer-events: none;
+      }
+
+      .hero-copy { width: min(720px, 100%); }
+      .eyebrow, .section-kicker { color: var(--rust); }
+      h1, h2, p { margin-top: 0; }
+
+      h1 {
+        max-width: 730px;
+        margin-bottom: 22px;
+        font-family: var(--serif);
+        font-size: 78px;
+        font-weight: 500;
+        line-height: 0.95;
+      }
+
+      .intro {
+        max-width: 540px;
+        margin-bottom: 30px;
+        color: #e0ddd4;
+        font-size: 14px;
+        line-height: 1.8;
+      }
+
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+      .button {
+        display: inline-flex;
+        min-height: 50px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 22px;
+        border: 1px solid var(--rust);
+        background: var(--rust);
+        color: #120d0a;
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 600;
+        text-decoration: none;
+        text-transform: uppercase;
+        transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+      }
+
+      .button:hover, .button:focus-visible { background: var(--paper); border-color: var(--paper); }
+      .button-secondary { background: rgba(9, 10, 8, 0.56); color: var(--paper); }
+      .button-secondary:hover, .button-secondary:focus-visible { color: var(--ink); }
+
+      .hero-meta {
+        position: absolute;
+        right: clamp(24px, 6vw, 88px);
+        bottom: 25px;
+        color: #d5d0c3;
+      }
+
+      .about {
+        display: grid;
+        grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.6fr);
+        gap: clamp(28px, 8vw, 120px);
+        padding: 70px clamp(22px, 9vw, 132px) 78px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .about h2 {
+        max-width: 550px;
+        margin-bottom: 16px;
+        font-family: var(--serif);
+        font-size: 40px;
+        font-weight: 500;
+        line-height: 1.05;
+      }
+
+      .about-copy p { max-width: 680px; margin-bottom: 0; color: var(--muted); font-size: 13px; line-height: 1.9; }
+      .platforms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+      .platform { min-height: 190px; padding: 34px clamp(22px, 9vw, 132px) 38px; }
+      .platform + .platform { border-left: 1px solid var(--line); }
+      .platform-label { margin-bottom: 10px; color: var(--rust); }
+
+      .platform h2 {
+        margin-bottom: 6px;
+        font-family: var(--serif);
+        font-size: 30px;
+        font-weight: 500;
+      }
+
+      .platform p { margin-bottom: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
+
+      .downloads {
+        padding: 54px clamp(22px, 9vw, 132px) 64px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .downloads-heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 30px;
+        margin-bottom: 24px;
+      }
+
+      .downloads-heading h2 {
+        margin-bottom: 0;
+        font-family: var(--serif);
+        font-size: 38px;
+        font-weight: 500;
+      }
+
+      .download-note { max-width: 370px; margin-bottom: 4px; color: var(--muted); font-size: 11px; line-height: 1.7; }
+      .download-list { border-top: 1px solid var(--line); }
+
+      .download-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 17px 0;
+        border-bottom: 1px solid var(--line);
+        text-decoration: none;
+      }
+
+      .download-row strong { display: block; font-size: 12px; font-weight: 500; }
+      .download-row small { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+      .download-action { color: var(--rust); font-size: 10px; text-transform: uppercase; white-space: nowrap; }
+      .download-row:hover strong, .download-row:focus-visible strong { color: var(--rust); }
+
+      footer {
+        display: flex;
+        min-height: 64px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 14px clamp(20px, 6vw, 88px);
+        color: var(--muted);
+      }
+
+      .footer-note { margin: 0; }
+      footer a { color: var(--paper); font-size: 10px; text-decoration-color: var(--rust); text-underline-offset: 4px; }
+
+      @media (max-width: 680px) {
+        .topbar { min-height: 66px; padding-inline: 18px; }
+        .top-note { display: none; }
+        .hero { min-height: min(600px, calc(100svh - 96px)); padding: 56px 24px 84px; }
+        .hero-art { object-position: 54% center; }
+        .hero-frame { inset: 12px; }
+        h1 { max-width: 430px; font-size: 54px; }
+        .intro { max-width: 430px; font-size: 13px; }
+        .actions { align-items: stretch; flex-direction: column; max-width: 290px; }
+        .hero-meta { right: 22px; bottom: 21px; font-size: 9px; }
+        .about { grid-template-columns: 1fr; gap: 16px; padding: 46px 24px 52px; }
+        .about h2 { font-size: 34px; }
+        .platforms { grid-template-columns: 1fr; }
+        .platform { min-height: 0; padding: 28px 24px 30px; }
+        .platform + .platform { border-top: 1px solid var(--line); border-left: 0; }
+        .downloads { padding: 42px 24px 48px; }
+        .downloads-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+        .downloads-heading h2 { font-size: 33px; }
+        .download-row { align-items: flex-start; }
+        footer { align-items: flex-start; flex-direction: column; padding: 20px 24px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after { transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Shattered Memories home">
+        <span class="brand-mark" aria-hidden="true">S</span>
+        <span class="brand-name">Shattered<br />Memories</span>
+      </a>
+      <span class="top-note">A procedural hallway nightmare</span>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <img class="hero-art" src="./Shattered_Memories/psp/assets/PIC1.PNG" alt="A dim, endless hallway from Shattered Memories" />
+        <span class="hero-frame" aria-hidden="true"></span>
+        <div class="hero-copy">
+          <p class="eyebrow">A survival horror game</p>
+          <h1 id="hero-title">Shattered Memories</h1>
+          <p class="intro">The halls rearrange when you look away. Search what was left behind, keep out of sight, and find a way through a nightmare that never maps the same twice.</p>
+          <div class="actions">
+            <a class="button" href="./game/">Play the web game</a>
+            <a class="button button-secondary" href="./downloads/SM_PSP_Version_Download.zip" download>Download for PSP</a>
+          </div>
+        </div>
+        <span class="hero-meta">No signal / No fixed way out</span>
+      </section>
+
+      <section class="about" aria-labelledby="about-title">
+        <p class="section-kicker">The game</p>
+        <div class="about-copy">
+          <h2 id="about-title">Every corridor leads somewhere unfamiliar.</h2>
+          <p>Shattered Memories is a first-person survival horror game built around shifting, procedurally generated hallways. Explore the dark, search rooms for supplies, and avoid the presence moving just beyond your view. Your progress stays in your browser; no account or game server is required.</p>
+        </div>
+      </section>
+
+      <section class="platforms" aria-label="Available versions">
+        <div class="platform">
+          <p class="platform-label">In your browser</p>
+          <h2>Web version</h2>
+          <p>Play the standalone browser game. No sign-in required.</p>
+        </div>
+        <div class="platform">
+          <p class="platform-label">Homebrew project</p>
+          <h2>PSP version</h2>
+          <p>Download the PSP source package. A PSPSDK build is required to create the game executable.</p>
+        </div>
+      </section>
+
+      <section class="downloads" aria-labelledby="downloads-title">
+        <div class="downloads-heading">
+          <div>
+            <p class="section-kicker">Downloads</p>
+            <h2 id="downloads-title">Take the files with you.</h2>
+          </div>
+          <p class="download-note">The PSP archive contains source code, not an installable EBOOT. Build it with the PSPSDK toolchain.</p>
+        </div>
+        <div class="download-list">
+          <a class="download-row" href="./downloads/SM_PSP_Version_Download.zip" download>
+            <span><strong>PSP homebrew source</strong><small>Source, artwork, and Makefile</small></span>
+            <span class="download-action">Download ZIP</span>
+          </a>
+          <a class="download-row" href="./downloads/SM_Web_Version_Download.zip" download>
+            <span><strong>Web project</strong><small>Browser game source project</small></span>
+            <span class="download-action">Download ZIP</span>
+          </a>
+          <a class="download-row" href="./downloads/SM_Standalone_Download.zip" download>
+            <span><strong>Standalone bundle</strong><small>Web game with the PSP source included</small></span>
+            <span class="download-action">Download ZIP</span>
+          </a>
+          <a class="download-row" href="./downloads/SM_Full_Package_Download.zip" download>
+            <span><strong>Full package</strong><small>Complete web and PSP project package</small></span>
+            <span class="download-action">Download ZIP</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p class="footer-note">Shattered Memories | Web and PSP projects</p>
+      <a href="./SM_Full_Package_Download/README_FIRST.txt">Full package details</a>
+    </footer>
+  </body>
+</html>
