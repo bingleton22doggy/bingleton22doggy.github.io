@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>High-Poly Sports Car | 3D Viewer</title>
+<style>
+  :root { color-scheme: dark; --panel: rgba(13,17,24,.78); --line: rgba(255,255,255,.12); --muted: #aab4c1; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#090d14; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  #viewport { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; outline:none; }
+  .hud { position:fixed; z-index:2; color:#f3f6fb; pointer-events:none; }
+  .brand { top:24px; left:28px; }
+  .eyebrow { color:#a7b5c7; font-size:10px; letter-spacing:.24em; font-weight:700; text-transform:uppercase; }
+  h1 { margin:7px 0 4px; font-size:clamp(21px,3vw,34px); line-height:1; letter-spacing:-.045em; font-weight:750; }
+  .sub { color:#aeb9c7; font-size:12px; letter-spacing:.04em; }
+  .panel { pointer-events:auto; position:fixed; z-index:3; right:22px; top:22px; width:210px; padding:15px; border:1px solid var(--line); border-radius:15px; background:var(--panel); backdrop-filter:blur(16px); box-shadow:0 18px 60px rgba(0,0,0,.26); color:#edf3fa; }
+  .panel h2 { margin:0 0 12px; font-size:11px; text-transform:uppercase; letter-spacing:.15em; color:#aeb9c7; }
+  .swatches { display:flex; gap:9px; margin-bottom:15px; }
+  .swatch { width:28px; height:28px; border:2px solid rgba(255,255,255,.28); border-radius:50%; cursor:pointer; box-shadow:0 3px 10px #0008; }
+  .swatch[aria-pressed="true"] { outline:2px solid white; outline-offset:3px; }
+  .toggle { width:100%; display:flex; align-items:center; justify-content:space-between; color:#eaf0f7; background:rgba(255,255,255,.055); border:1px solid var(--line); border-radius:9px; padding:9px 10px; margin:7px 0; font-size:12px; cursor:pointer; }
+  .toggle:hover { background:rgba(255,255,255,.1); }
+  .toggle span:last-child { color:#9eacbc; font-size:10px; }
+  .hint { left:28px; bottom:24px; color:#aeb9c7; font-size:11px; line-height:1.7; }
+  .hint b { color:#eef3f9; font-weight:600; }
+  .spec { right:22px; bottom:22px; text-align:right; color:#dce4ee; font-size:10px; letter-spacing:.12em; text-transform:uppercase; }
+  .spec strong { display:block; font-size:17px; letter-spacing:-.02em; text-transform:none; margin-top:4px; }
+  #loading { position:fixed; z-index:10; inset:0; display:grid; place-items:center; color:#eaf0f7; background:radial-gradient(ellipse at 50% 45%,#202c3c,#090d14 70%); transition:opacity .4s ease; }
+  #loading.hidden { opacity:0; pointer-events:none; }
+  .loadbox { text-align:center; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:#aeb9c7; }
+  .spinner { width:28px; height:28px; border:2px solid #ffffff22; border-top-color:#e8f0fb; border-radius:50%; margin:0 auto 14px; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #error { display:none; position:fixed; inset:0; z-index:20; padding:35px; color:white; background:#101722; }
+  #error code { color:#b8d7ff; }
+  @media(max-width:640px){ .panel{top:auto;bottom:88px;right:12px;width:170px;padding:12px}.brand{left:16px;top:16px}.hint{left:16px;bottom:14px;font-size:10px}.spec{display:none} }
+</style>
+
+</head>
+<body>
+<div id="viewport"></div>
+<div id="loading"><div class="loadbox"><div class="spinner"></div>Building the vehicle</div></div>
+<div id="error"><h2>3D viewer could not start</h2><p>The 3D engine could not start. Check your internet connection and browser WebGL support, then reload this file.</p><code id="errorText"></code></div>
+<div class="hud brand"><div class="eyebrow">Studio vehicle series · 001</div><h1>VANTAGE R</h1><div class="sub">A sculpted high-detail sports coupe</div></div>
+<div class="panel">
+  <h2>Configure finish</h2>
+  <div class="swatches" aria-label="Paint color">
+    <button class="swatch" title="Crimson" aria-label="Crimson paint" aria-pressed="true" data-color="#9e1425" style="background:#9e1425"></button>
+    <button class="swatch" title="Ocean blue" aria-label="Ocean blue paint" aria-pressed="false" data-color="#145b91" style="background:#145b91"></button>
+    <button class="swatch" title="Graphite" aria-label="Graphite paint" aria-pressed="false" data-color="#343c48" style="background:#343c48"></button>
+    <button class="swatch" title="Pearl white" aria-label="Pearl white paint" aria-pressed="false" data-color="#c9cdd0" style="background:#c9cdd0"></button>
+  </div>
+  <button class="toggle" id="lights"><span>Headlights</span><span>ON</span></button>
+  <button class="toggle" id="wire"><span>Wireframe</span><span>OFF</span></button>
+  <button class="toggle" id="reset"><span>Reset camera</span><span>↺</span></button>
+</div>
+<div class="hud hint"><b>DRAG</b> rotate &nbsp;·&nbsp; <b>SCROLL</b> zoom<br><b>RIGHT-DRAG</b> pan &nbsp;·&nbsp; <b>DOUBLE-CLICK</b> reset</div>
+<div class="hud spec">Front-engine · Rear-drive<strong>5.2 m <span style="color:#8795a7;font-size:11px;font-weight:400">overall length</span></strong></div>
+<script>
+function showViewerError(error) {
+  const loading = document.getElementById('loading');
+  const box = document.getElementById('error');
+  const detail = document.getElementById('errorText');
+  if (loading) loading.classList.add('hidden');
+  if (detail) detail.textContent = error && error.message ? error.message : String(error || 'Unknown startup error');
+  if (box) box.style.display = 'block';
+}
+function loadClassicScript(url) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = url;
+    script.async = true;
+    script.onload = () => resolve(url);
+    script.onerror = () => {
+      script.remove();
+      reject(new Error('Could not load ' + url));
+    };
+    document.head.appendChild(script);
+  });
+}
+async function loadThreeEngine() {
+  const cdns = [
+    'https://cdn.jsdelivr.net/npm/three@0.147.0',
+    'https://unpkg.com/three@0.147.0'
+  ];
+  let lastError;
+  for (const base of cdns) {
+    try {
+      await loadClassicScript(base + '/build/three.min.js');
+      await loadClassicScript(base + '/examples/js/controls/OrbitControls.js');
+      if (!window.THREE || !window.THREE.OrbitControls) throw new Error('Three.js loaded, but OrbitControls was not available.');
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('Could not load the 3D engine from either CDN.');
+}
+function startViewer() {
+const THREE = window.THREE;
+const OrbitControls = THREE.OrbitControls;
+
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1019);
+scene.fog = new THREE.Fog(0x0a1019, 12, 30);
+const camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, .1, 100);
+camera.position.set(7.8, 4.8, 7.8);
+const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+viewport.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, .95, 0);
+controls.enableDamping = true;
+controls.dampingFactor = .055;
+controls.minDistance = 4.6;
+controls.maxDistance = 16;
+controls.maxPolarAngle = Math.PI*.485;
+controls.update();
+
+scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x24202a, 1.05));
+const key = new THREE.DirectionalLight(0xfff0df, 3.1); key.position.set(5,9,6); key.castShadow=true; key.shadow.mapSize.set(2048,2048); key.shadow.camera.left=-8; key.shadow.camera.right=8; key.shadow.camera.top=8; key.shadow.camera.bottom=-8; key.shadow.bias=-.00015; scene.add(key);
+const rim = new THREE.DirectionalLight(0x77aaff, 2.2); rim.position.set(-6,4,-5); scene.add(rim);
+
+// Soft studio floor and a restrained circular display plinth.
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:0x111923, roughness:.82, metalness:.12}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-.035; floor.receiveShadow=true; scene.add(floor);
+const plinth = new THREE.Mesh(new THREE.CylinderGeometry(3.7,3.8,.12,128), new THREE.MeshStandardMaterial({color:0x202b38, metalness:.62, roughness:.42}));
+plinth.position.y=.025; plinth.receiveShadow=true; plinth.castShadow=true; scene.add(plinth);
+const rimRing = new THREE.Mesh(new THREE.TorusGeometry(3.73,.018,10,160), new THREE.MeshBasicMaterial({color:0x687b91})); rimRing.rotation.x=Math.PI/2; rimRing.position.y=.09; scene.add(rimRing);
+
+const car = new THREE.Group(); scene.add(car);
+const paint = new THREE.MeshPhysicalMaterial({color:0x9e1425, metalness:.72, roughness:.23, clearcoat:1, clearcoatRoughness:.12});
+const darkPaint = new THREE.MeshStandardMaterial({color:0x10151c, metalness:.55, roughness:.34});
+const glass = new THREE.MeshPhysicalMaterial({color:0x071725, metalness:.3, roughness:.09, transparent:true, opacity:.94, clearcoat:1, side:THREE.DoubleSide});
+const rubber = new THREE.MeshStandardMaterial({color:0x090b0f, roughness:.78, metalness:.02});
+const alloy = new THREE.MeshStandardMaterial({color:0xaeb8c2, metalness:.92, roughness:.2});
+const alloyDark = new THREE.MeshStandardMaterial({color:0x303943, metalness:.85, roughness:.28});
+const chrome = new THREE.MeshStandardMaterial({color:0xd8e1e9, metalness:1, roughness:.15});
+const lampMat = new THREE.MeshPhysicalMaterial({color:0xe9f4ff, emissive:0x9fcfff, emissiveIntensity:1.6, roughness:.15, metalness:.1, clearcoat:1});
+const tailMat = new THREE.MeshStandardMaterial({color:0x8e0614, emissive:0xe00018, emissiveIntensity:1.35, roughness:.24});
+const blackGlass = new THREE.MeshStandardMaterial({color:0x080d12, roughness:.32, metalness:.45});
+
+// Smooth lofted body. Every station is interpolated and the surface is densely tessellated.
+const bodyStations = [
+ [-2.52,.04,.55,.10],[-2.42,.48,.58,.13],[-2.20,.77,.61,.18],[-1.75,.88,.63,.21],[-1.10,.91,.65,.22],[-.45,.91,.65,.22],[.35,.91,.65,.22],[1.10,.90,.65,.22],[1.70,.86,.62,.18],[2.12,.77,.59,.14],[2.40,.52,.56,.12],[2.50,.05,.54,.12]
+];
+function smoothSample(stations, z, col){
+  let i=0; while(i<stations.length-2 && z>stations[i+1][0]) i++;
+  const a=stations[i], b=stations[i+1], p=stations[Math.max(0,i-1)], n=stations[Math.min(stations.length-1,i+2)];
+  const t=THREE.MathUtils.clamp((z-a[0])/(b[0]-a[0]),0,1);
+  const m0=(b[col]-p[col])/(b[0]-p[0]), m1=(n[col]-a[col])/(n[0]-a[0]), d=b[0]-a[0];
+  const t2=t*t,t3=t2*t;
+  return (2*t3-3*t2+1)*a[col]+(t3-2*t2+t)*d*m0+(-2*t3+3*t2)*b[col]+(t3-t2)*d*m1;
+}
+function loftBody(){
+ const verts=[],uv=[],idx=[]; const nz=160, around=72;
+ for(let j=0;j<=nz;j++){
+  const z=THREE.MathUtils.lerp(-2.52,2.50,j/nz), w=Math.max(.001,smoothSample(bodyStations,z,1)), cy=smoothSample(bodyStations,z,2), h=Math.max(.015,smoothSample(bodyStations,z,3));
+  for(let k=0;k<=around;k++){
+   const a=k/around*Math.PI*2, c=Math.cos(a), s=Math.sin(a);
+   const sx=Math.sign(c)*Math.pow(Math.abs(c),.72), sy=Math.sign(s)*Math.pow(Math.abs(s),.82);
+   verts.push(w*sx,cy+h*sy,z); uv.push(k/around,j/nz);
+  }
+ }
+ for(let j=0;j<nz;j++) for(let k=0;k<around;k++){
+  const a=j*(around+1)+k,b=a+around+1; idx.push(a,a+1,b,b,a+1,b+1);
+ }
+ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+ return g;
+}
+const body=new THREE.Mesh(loftBody(),paint); body.castShadow=true;body.receiveShadow=true; car.add(body);
+
+// Lower aero surfaces and sculpted bumper pieces.
+function addBox(parent, mat, size, pos, rot=[0,0,0], bevel=true){
+ let geo;
+ if(bevel){ geo=new THREE.BoxGeometry(...size,3,3,3); }
+ else geo=new THREE.BoxGeometry(...size);
+ const m=new THREE.Mesh(geo,mat);m.position.set(...pos);m.rotation.set(...rot);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
+}
+addBox(car,darkPaint,[1.62,.14,3.75],[0,.30,0]);
+addBox(car,darkPaint,[1.82,.075,.48],[0,.30,2.33]);
+addBox(car,darkPaint,[1.82,.075,.42],[0,.30,-2.28]);
+// Front central grille and layered intake slots.
+addBox(car,blackGlass,[1.06,.26,.055],[0,.61,2.455]);
+for(let y=.515;y<.72;y+=.052) addBox(car,alloyDark,[.92,.012,.012],[0,y,2.49]);
+for(const s of [-1,1]){
+ addBox(car,blackGlass,[.36,.20,.06],[s*.67,.56,2.40]);
+ addBox(car,darkPaint,[.42,.055,.09],[s*.68,.405,2.43]);
+ // tiny amber side marker
+ const marker=new THREE.Mesh(new THREE.BoxGeometry(.035,.045,.025),new THREE.MeshBasicMaterial({color:0xff9b3d}));marker.position.set(s*.88,.69,1.93);car.add(marker);
+}
+// Hood shut lines and character creases.
+function tube(points, radius, material, parent=car){const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p)));const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(24,points.length*12),radius,8,false),material);mesh.castShadow=true;parent.add(mesh);return mesh;}
+const creaseMat=new THREE.MeshStandardMaterial({color:0x54111b,metalness:.55,roughness:.35});
+for(const s of [-1,1]){
+ tube([[s*.28,.82,2.18],[s*.36,.91,1.65],[s*.42,.91,1.05],[s*.49,.89,.55]],.012,creaseMat);
+ tube([[s*.82,.68,1.55],[s*.88,.70,.65],[s*.89,.69,-.75],[s*.78,.68,-1.75]],.012,darkPaint);
+}
+
+// Coupe cabin: a curved roof skin plus distinct side panels, leaving proper glazing areas.
+const cabinStations=[[-1.26,.42,1.00,1.06],[-1.08,.57,1.08,1.65],[-.78,.64,1.13,1.91],[-.35,.66,1.15,2.02],[.28,.65,1.15,2.01],[.72,.58,1.12,1.84],[1.04,.47,1.00,1.35],[1.16,.34,.91,1.00]];
+function cabinSideY(z){const lo=smoothSample(cabinStations,z,2),hi=smoothSample(cabinStations,z,3);return lo+(hi-lo)*.66;}
+function cabinTopGeometry(){
+ const verts=[],uv=[],idx=[],nz=112,nu=48;
+ for(let j=0;j<=nz;j++){
+  const z=THREE.MathUtils.lerp(-1.26,1.16,j/nz),w=smoothSample(cabinStations,z,1),top=smoothSample(cabinStations,z,3),edge=cabinSideY(z);
+  for(let k=0;k<=nu;k++){
+   const u=-1+2*k/nu;verts.push(w*u,top-(top-edge)*Math.pow(Math.abs(u),2.25),z);uv.push(k/nu,j/nz);
+  }
+ }
+ for(let j=0;j<nz;j++)for(let k=0;k<nu;k++){const a=j*(nu+1)+k,b=a+nu+1;idx.push(a,b,a+1,b,b+1,a+1);}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();return g;
+}
+function cabinSideGeometry(side){
+ const verts=[],idx=[],nz=112,nv=24;
+ for(let j=0;j<=nz;j++){
+  const z=THREE.MathUtils.lerp(-1.26,1.16,j/nz),w=smoothSample(cabinStations,z,1),lo=smoothSample(cabinStations,z,2),edge=cabinSideY(z);
+  for(let k=0;k<=nv;k++){const v=k/nv;verts.push(side*(w+.008),lo+(edge-lo)*v,z);}
+ }
+ for(let j=0;j<nz;j++)for(let k=0;k<nv;k++){const a=j*(nv+1)+k,b=a+nv+1;if(side>0)idx.push(a,a+1,b,b,a+1,b+1);else idx.push(a,b,a+1,b,b+1,a+1);}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setIndex(idx);g.computeVertexNormals();return g;
+}
+const cabinTop=new THREE.Mesh(cabinTopGeometry(),paint);cabinTop.castShadow=true;cabinTop.receiveShadow=true;car.add(cabinTop);
+for(const side of [-1,1]){const shell=new THREE.Mesh(cabinSideGeometry(side),paint);shell.castShadow=true;shell.receiveShadow=true;car.add(shell);}
+function sidePane(side,coords){
+ const verts=[],idx=[];
+ for(const [z,y] of coords){verts.push(side*(smoothSample(cabinStations,z,1)+.022),y,z);}
+ for(let i=1;i<coords.length-1;i++){if(side>0)idx.push(0,i,i+1);else idx.push(0,i+1,i);}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setIndex(idx);g.computeVertexNormals();
+ const paneMesh=new THREE.Mesh(g,glass);paneMesh.material.side=THREE.DoubleSide;car.add(paneMesh);
+ tube(verts.map(p=>[p[0]*1.002,p[1],p[2]]).concat([[verts[0][0]*1.002,verts[0][1],verts[0][2]]]),.014,blackGlass);
+}
+for(const side of [-1,1]){
+ sidePane(side,[[-.98,1.20],[-.84,1.53],[-.35,1.70],[.08,1.70],[.08,1.22]]);
+ sidePane(side,[[.19,1.22],[.19,1.70],[.59,1.62],[.82,1.30],[.78,1.22]]);
+ tube([[side*.43,1.06,1.12],[side*.51,1.43,.91],[side*.58,1.83,.72]],.036,darkPaint);
+ tube([[side*.43,1.06,-1.20],[side*.51,1.42,-1.01],[side*.64,1.88,-.78]],.038,darkPaint);
+ tube([[side*.645,1.22,.15],[side*.655,1.48,.16],[side*.60,1.70,.17]],.025,darkPaint);
+}
+// Windscreen and rear screen quads.
+function quadMesh(points, material){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(points.flat(),3));g.setIndex([0,1,2,0,2,3]);g.computeVertexNormals();const m=new THREE.Mesh(g,material);m.material.side=THREE.DoubleSide;car.add(m);return m;}
+quadMesh([[-.43,1.16,1.10],[.43,1.16,1.10],[.52,1.82,.72],[-.52,1.82,.72]],glass);
+quadMesh([[-.52,1.82,-.78],[.52,1.82,-.78],[.43,1.14,-1.20],[-.43,1.14,-1.20]],glass);
+// Roof insert and fine windshield edge seals.
+// The cabin loft itself forms the curved roof, so no floating roof slab is needed.
+
+// Four multi-part wheels: rubber sidewalls, brake rotors, vented hubs, and sculpted spokes.
+const wheelDetails=[];
+function makeWheel(side,z){
+ const w=new THREE.Group();w.position.set(side*.89,.48,z);car.add(w);
+ const tire=new THREE.Mesh(new THREE.CylinderGeometry(.435,.435,.29,72,1),rubber);tire.rotation.z=Math.PI/2;tire.castShadow=true;tire.receiveShadow=true;w.add(tire);
+ const sidewall=new THREE.Mesh(new THREE.TorusGeometry(.365,.055,12,72),rubber);sidewall.rotation.y=Math.PI/2;sidewall.position.x=side*.148;w.add(sidewall);
+ const disc=new THREE.Mesh(new THREE.CylinderGeometry(.315,.315,.045,64),alloyDark);disc.rotation.z=Math.PI/2;disc.position.x=side*.115;w.add(disc);
+ const rotorRing=new THREE.Mesh(new THREE.TorusGeometry(.274,.018,8,64),chrome);rotorRing.rotation.y=Math.PI/2;rotorRing.position.x=side*.143;w.add(rotorRing);
+ const face=new THREE.Group();face.position.x=side*.153;face.rotation.y=side*Math.PI/2;w.add(face);
+ const rim=new THREE.Mesh(new THREE.TorusGeometry(.325,.024,12,80),alloy);face.add(rim);
+ const inner=new THREE.Mesh(new THREE.CylinderGeometry(.255,.255,.018,64),alloyDark);inner.rotation.x=Math.PI/2;face.add(inner);
+ for(let i=0;i<10;i++){
+  const a=i*Math.PI/5;
+  const spoke=new THREE.Mesh(new THREE.BoxGeometry(.043,.275,.052),alloy);spoke.position.set(Math.sin(a)*.145,Math.cos(a)*.145,0);spoke.rotation.z=-a;spoke.castShadow=true;face.add(spoke);
+  const inset=new THREE.Mesh(new THREE.BoxGeometry(.012,.20,.056),alloyDark);inset.position.set(Math.sin(a)*.145,Math.cos(a)*.145,.004);inset.rotation.z=-a;face.add(inset);
+ }
+ const hub=new THREE.Mesh(new THREE.CylinderGeometry(.085,.085,.035,48),chrome);hub.rotation.x=Math.PI/2;hub.position.z=.018;face.add(hub);
+ const cap=new THREE.Mesh(new THREE.CylinderGeometry(.047,.047,.039,40),darkPaint);cap.rotation.x=Math.PI/2;cap.position.z=.04;face.add(cap);
+ const caliper= new THREE.Mesh(new THREE.BoxGeometry(.07,.18,.09),new THREE.MeshStandardMaterial({color:0x9e1723,metalness:.55,roughness:.31}));caliper.position.set(.245,-.04,.035);face.add(caliper);
+ // Subtle sidewall lettering ticks.
+ for(let i=0;i<32;i++){const a=i*Math.PI/16;const tick=new THREE.Mesh(new THREE.BoxGeometry(.009,.035,.009),alloyDark);tick.position.set(side*.15,Math.sin(a)*.405,Math.cos(a)*.405);w.add(tick);}
+ wheelDetails.push(w);
+}
+for(const s of [-1,1]) for(const z of [-1.48,1.48]) makeWheel(s,z);
+
+// Headlights, rear lamps, exhausts, mirrors, door hardware and aero details.
+const headlightGroup=new THREE.Group();car.add(headlightGroup);
+function roundedLamp(x,y,z,material,w,h){
+ const shape=new THREE.Shape();const r=.07;shape.moveTo(-w/2+r,-h/2);shape.lineTo(w/2-r,-h/2);shape.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);shape.lineTo(w/2,h/2-r);shape.quadraticCurveTo(w/2,h/2,w/2-r,h/2);shape.lineTo(-w/2+r,h/2);shape.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);shape.lineTo(-w/2,-h/2+r);shape.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);
+ const g=new THREE.ExtrudeGeometry(shape,{depth:.025,bevelEnabled:true,bevelSegments:3,steps:1,bevelSize:.018,bevelThickness:.012});const m=new THREE.Mesh(g,material);m.position.set(x,y,z);car.add(m);return m;
+}
+for(const s of [-1,1]){
+ roundedLamp(s*.57,.91,2.37,lampMat,.57,.16);
+ // LED strips inside lamps.
+ tube([[s*.36,.91,2.415],[s*.56,.91,2.42],[s*.78,.92,2.40]],.012,chrome);
+ roundedLamp(s*.58,.84,-2.36,tailMat,.52,.12);
+ // mirror stem + housing
+ tube([[s*.64,1.26,.77],[s*.88,1.30,.88],[s*1.02,1.31,.92]],.035,darkPaint);
+ const mirror=new THREE.Mesh(new THREE.SphereGeometry(.13,24,16),paint);mirror.scale.set(1.25,.72,.78);mirror.position.set(s*1.02,1.34,.94);mirror.castShadow=true;car.add(mirror);
+ // door handle, front and rear wheel arch accent lines
+ addBox(car,chrome,[.15,.025,.025],[s*.902,1.02,-.17],[0,0,0]);
+ tube([[s*.90,.73,-1.92],[s*.94,.82,-1.57],[s*.94,.85,-1.28]],.012,alloyDark);
+ tube([[s*.94,.85,1.20],[s*.92,.82,1.55],[s*.87,.72,1.89]],.012,alloyDark);
+}
+// Exhaust outlets and rear diffuser fins.
+for(const s of [-1,1]){
+ const exhaust=new THREE.Mesh(new THREE.CylinderGeometry(.075,.085,.10,32),chrome);exhaust.rotation.x=Math.PI/2;exhaust.position.set(s*.58,.42,-2.48);car.add(exhaust);
+ const innerEx=new THREE.Mesh(new THREE.CylinderGeometry(.052,.06,.105,32),blackGlass);innerEx.rotation.x=Math.PI/2;innerEx.position.set(s*.58,.42,-2.49);car.add(innerEx);
+}
+for(let x=-.6;x<=.61;x+=.2) addBox(car,alloyDark,[.035,.15,.28],[x,.32,-2.20],[.12,0,0]);
+
+// Subtle wheel-arch lips: thin curves following each wheel opening.
+for(const s of [-1,1])for(const zc of [-1.48,1.48]){
+ const pts=[];for(let i=0;i<=32;i++){const a=Math.PI*.08+i/32*Math.PI*.84;pts.push([s*(.89+.445*Math.cos(a)),.48+.445*Math.sin(a),zc+.445*Math.cos(a)]);}
+ tube(pts,.018,darkPaint);
+}
+
+// Paint finish control updates all painted surfaces while retaining material response.
+const paintMeshes=[];car.traverse(o=>{if(o.isMesh && (o.material===paint))paintMeshes.push(o)});
+document.querySelectorAll('.swatch').forEach(btn=>btn.addEventListener('click',()=>{
+ paint.color.set(btn.dataset.color);document.querySelectorAll('.swatch').forEach(b=>b.setAttribute('aria-pressed',String(b===btn)));
+}));
+let lightsOn=true;
+document.getElementById('lights').addEventListener('click',e=>{lightsOn=!lightsOn;lampMat.emissiveIntensity=lightsOn?1.6:0; e.currentTarget.querySelector('span:last-child').textContent=lightsOn?'ON':'OFF';});
+let wire=false;
+document.getElementById('wire').addEventListener('click',e=>{wire=!wire;body.material.wireframe=wire;cabin.material.wireframe=wire;e.currentTarget.querySelector('span:last-child').textContent=wire?'ON':'OFF';});
+function resetCamera(){camera.position.set(7.8,4.8,7.8);controls.target.set(0,.95,0);controls.update();}
+document.getElementById('reset').addEventListener('click',resetCamera);
+renderer.domElement.addEventListener('dblclick',resetCamera);
+
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));});
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}
+animate();
+document.getElementById('loading').classList.add('hidden');
+}
+
+let startupFailed = false;
+const startupTimer = setTimeout(() => {
+  startupFailed = true;
+  showViewerError(new Error('The 3D engine did not respond within 18 seconds. Check your internet connection, then reload.'));
+}, 18000);
+loadThreeEngine().then(() => {
+  if (startupFailed) return;
+  clearTimeout(startupTimer);
+  startViewer();
+}).catch(error => {
+  if (startupFailed) return;
+  startupFailed = true;
+  clearTimeout(startupTimer);
+  showViewerError(error);
+});
+</script>
+</body>
+</html>
